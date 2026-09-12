@@ -1,0 +1,53 @@
+{
+  "name": "@classicchess/api",
+  "version": "0.1.0",
+  "description": "Typed Classic Chess public archive client for Node.js and Electron",
+  "license": "MIT",
+  "homepage": "https://classicchess.com/api/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andromeda1957/classicchess-api-typescript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Andromeda1957/classicchess-api-typescript/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "examples"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "npm run check:contract && npm run build && tsc -p tsconfig.test.json && node --test test/*.test.mjs",
+    "check:contract": "python3 scripts/generate_types.py --check",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

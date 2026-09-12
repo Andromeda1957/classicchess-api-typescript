@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>Classic Chess archive example</title>
+  <script src="renderer.js" defer></script>
+</head>
+<body>
+  <h1>Explore the curated archive</h1>
+  <label for="players">Player</label>
+  <select id="players" disabled><option>Loading players…</option></select>
+  <p id="status" role="status"></p>
+  <h2>Biography</h2>
+  <p id="bio"></p>
+  <h2>Notable games</h2>
+  <ul id="notable"></ul>
+  <h2>Selected PGN</h2>
+  <pre id="pgn"></pre>
+</body>
+</html>
