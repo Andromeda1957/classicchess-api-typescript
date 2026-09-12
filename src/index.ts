@@ -16,6 +16,11 @@ export type {
 
 export interface PageOptions { page?: number; pageSize?: number }
 export interface MasterGameFilters extends PageOptions { query: string }
+export interface MasterStatsFilters { query?: string; player?: string; opponent?: string; mode?: 'summary' | 'head_to_head' }
+export interface ExportOptions { tokens?: string[]; format?: 'pgn' | 'ndjson'; pgnInJson?: boolean }
+export interface ExplorerFilters {
+  fen?: string; play?: string; moves?: number; topGames?: number; sourceType?: string; sourceKey?: string;
+}
 export interface PublicGameFilters extends PageOptions {
   query?: string;
   archivePlayer?: string;
@@ -73,6 +78,33 @@ export class ClassicChessClient {
   discovery(options?: RequestOptions): Promise<ApiDiscovery> {
     return this.json('/api/v1/', {}, options);
   }
+  players(query: string, filters: { limit?: number } = {}, options?: RequestOptions): Promise<Record<string, unknown>> {
+    return this.json('/api/v1/players/', { q: query, limit: filters.limit ?? 10 }, options);
+  }
+  masterStats(filters: MasterStatsFilters, options?: RequestOptions): Promise<Record<string, unknown>> {
+    if (filters.query) return this.json('/api/v1/stats/', { q: filters.query }, options);
+    const mode = filters.mode ?? (filters.opponent ? 'head_to_head' : 'summary');
+    if (!filters.player || mode === 'head_to_head' && !filters.opponent) {
+      throw new ApiError('Use a stats query or player; head_to_head requires opponent.', { code: 'invalid_query' });
+    }
+    return this.json('/api/v1/stats/', { player: filters.player, opponent: filters.opponent, mode }, options);
+  }
+  explorer(filters: ExplorerFilters = {}, options?: RequestOptions): Promise<Record<string, unknown>> {
+    return this.json('/api/v1/opening-explorer/', { fen: filters.fen, play: filters.play,
+      moves: filters.moves ?? 12, topGames: filters.topGames, source_type: filters.sourceType, source_key: filters.sourceKey }, options);
+  }
+  explorerSources(options?: RequestOptions): Promise<Record<string, unknown>> {
+    return this.json('/api/v1/opening-explorer/sources/', {}, options);
+  }
+  exportMasterGames(filters: ExportOptions & { query?: string }, options?: RequestOptions): Promise<string> {
+    if (!filters.tokens?.length && !filters.query) throw new ApiError('Use a query or game tokens.', { code: 'invalid_export' });
+    if (filters.tokens && (filters.tokens.length < 1 || filters.tokens.length > 300)) {
+      throw new ApiError('Export between 1 and 300 tokens.', { code: 'invalid_export' });
+    }
+    return this.text('/api/v1/games/export/', { q: filters.tokens?.length ? undefined : filters.query,
+      tokens: filters.tokens?.map(masterToken).join(','), format: filters.format ?? 'pgn',
+      pgnInJson: filters.format === 'ndjson' ? String(filters.pgnInJson ?? true) : undefined }, options);
+  }
   masterGames(filters: MasterGameFilters, options?: RequestOptions): Promise<MasterGamePage> {
     return this.json('/api/v1/games/', masterQuery(filters), options);
   }
@@ -129,12 +161,13 @@ export class ClassicChessClient {
     return this.text(`/api/v1/public/games/${gameToken(token)}/pgn/`, {}, options);
   }
   /** One export is limited to 300 games by the API. Use iteratePublicGames for a complete archive. */
-  exportPublicGames(filters: Omit<PublicGameFilters, keyof PageOptions> & { tokens?: string[] } = {}, options?: RequestOptions): Promise<string> {
+  exportPublicGames(filters: Omit<PublicGameFilters, keyof PageOptions> & ExportOptions = {}, options?: RequestOptions): Promise<string> {
     if (filters.tokens && (filters.tokens.length < 1 || filters.tokens.length > 300)) {
       throw new ApiError('Export between 1 and 300 tokens per request.', { code: 'invalid_export' });
     }
     return this.text('/api/v1/public/games/export/', {
-      ...gameQuery(filters), tokens: filters.tokens?.map(gameToken).join(','),
+      ...gameQuery(filters), tokens: filters.tokens?.map(gameToken).join(','), format: filters.format ?? 'pgn',
+      pgnInJson: filters.format === 'ndjson' ? String(filters.pgnInJson ?? true) : undefined,
     }, options);
   }
   annotatedGames(bookSlug: string, page: PageOptions = {}, options?: RequestOptions): Promise<AnnotatedGamePage> {
@@ -152,6 +185,15 @@ export class ClassicChessClient {
   }
   iterateAnnotatedGames(bookSlug: string, page: PageOptions = {}, options: IterationOptions = {}): AsyncGenerator<AnnotatedGame> {
     return this.iterate(this.transport.url(`/api/v1/annotated/books/${segment(bookSlug)}/games/`, pageQuery(page)), options);
+  }
+
+  /** Combine returned api_pgn URLs in order; each URL must stay on the configured public API. */
+  async pgnTextForGames(pgnUrls: Iterable<string>, options?: RequestOptions): Promise<string> {
+    const games: string[] = [];
+    for (const url of pgnUrls) {
+      games.push((await this.transport.read<string>(this.transport.apiUrl(url), 'text', options)).trim());
+    }
+    return games.length ? games.join('\n\n') + '\n' : '';
   }
 
   private json<T>(path: string, query: Query, options?: RequestOptions): Promise<T> {

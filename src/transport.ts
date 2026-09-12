@@ -86,8 +86,10 @@ export class Transport {
     try { url = new URL(path, relativeTo); }
     catch (cause) { throw new ApiError('API returned an invalid URL.', { code: 'unsafe_url', cause }); }
     const masterRead = /^\/api\/v1\/games\/(?:g[0-9a-z]+-[0-9a-f]{12}\/(?:pgn\/)?)?$/.test(url.pathname);
+    const publicTool = ['/api/v1/players/', '/api/v1/stats/', '/api/v1/games/export/',
+      '/api/v1/opening-explorer/', '/api/v1/opening-explorer/sources/'].includes(url.pathname);
     if (url.origin !== this.baseUrl || url.username || url.password || url.hash
-      || !masterRead && !/^\/api\/v1\/(?:public\/|annotated\/)/.test(url.pathname) && url.pathname !== '/api/v1/') {
+      || !masterRead && !publicTool && !/^\/api\/v1\/(?:public\/|annotated\/)/.test(url.pathname) && url.pathname !== '/api/v1/') {
       throw new ApiError('Refused a link outside the configured public API.', { code: 'unsafe_url' });
     }
     return url;

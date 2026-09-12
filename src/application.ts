@@ -29,6 +29,32 @@ export class ApplicationClient {
     this.baseUrl = this.transport.baseUrl;
   }
 
+  accountMe(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
+    return this.request({ ...options, path: '/api/v1/account/me/', token });
+  }
+  accountCollections(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
+    return this.request({ ...options, path: '/api/v1/account/collections/', token });
+  }
+  accountCreateCollection(name: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
+    return this.request({ ...options, path: '/api/v1/account/collections/', method: 'POST', body: JSON.stringify({ name }), token });
+  }
+  accountImportPublicPlayerGames(input: { archivePlayer: string; name?: string; collectionId?: number; since?: number; until?: number },
+    token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
+    return this.request({ ...options, path: '/api/v1/account/collections/import/', method: 'POST', token,
+      body: JSON.stringify({ source: 'public_player_games', name: input.name, collection_id: input.collectionId,
+        archive_player: input.archivePlayer, since: input.since, until: input.until }) });
+  }
+  async scanPosition(image: Uint8Array, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
+    if (!(image instanceof Uint8Array) || image.byteLength < 1 || image.byteLength > 850_000) {
+      throw new ApiError('Use a JPEG of at most 850000 bytes.', { code: 'invalid_upload' });
+    }
+    const form = new FormData();
+    form.append('image', new Blob([Uint8Array.from(image).buffer], { type: 'image/jpeg' }), 'diagram.jpg');
+    const upload = new Request(this.baseUrl, { method: 'POST', body: form });
+    return this.request({ ...options, path: '/api/v1/mobile/position-scan/', method: 'POST', token, timeoutMs: 85_000,
+      body: new Uint8Array(await upload.arrayBuffer()), contentType: upload.headers.get('Content-Type')! });
+  }
+
   async request<T = Record<string, unknown>>(input: ApplicationRequest): Promise<ApplicationResponse<T>> {
     const { path, token } = input;
     const pathname = typeof path === 'string' ? path.split('?')[0]! : '';

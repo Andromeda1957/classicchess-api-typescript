@@ -44,7 +44,8 @@
     "build": "node scripts/build.mjs",
     "test": "npm run check:contract && npm run build && tsc -p tsconfig.test.json && node --test test/*.test.mjs",
     "check:contract": "python3 scripts/generate_types.py --check",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
