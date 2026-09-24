@@ -2,8 +2,10 @@ import type {
   ApiDiscovery, PublicPlayers, PublicPlayerDetail, PublicPlayerBiography,
   PublicNotableGames, PublicEventIndex, PublicEvents, PublicGame, PublicGamePage, AnnotatedBooks,
   AnnotatedGame, AnnotatedGamePage, MasterGame, MasterGameDetail, MasterGamePage,
+  PublicEventDetail, PublicEventAbout, GalleryPage, GalleryPhotoDetail, PublicBeginnerGames,
+  PublicDailyGame, SiteSearchPreview, SiteSearchPage, TablebaseProbe, PublicImportedGame,
 } from './schema.js';
-import { Transport, ApiError, segment, gameToken } from './transport.js';
+import { Transport, ApiError, segment, gameToken, usernameSegment } from './transport.js';
 import type { ClientOptions, RequestOptions, Query } from './transport.js';
 
 export { ApiError } from './transport.js';
@@ -12,6 +14,13 @@ export type {
   ApiDiscovery, Biography, PublicPlayer, PublicPlayers, PublicPlayerDetail,
   PublicPlayerBiography, PublicNotableGames, PublicEventIndex, PublicEvents, PublicGame, PublicGamePage,
   AnnotatedBooks, AnnotatedGame, AnnotatedGamePage, MasterGame, MasterGameDetail, MasterGamePage,
+  PublicEvent, PublicEventDetail, PublicEventAbout, EventBiography, GalleryPhoto, GalleryPage, GalleryPhotoDetail,
+  PublicBeginnerGames, PublicGameSummary, PublicDailyGame, SiteSearchPreview, SiteSearchPage,
+  SearchPlayer, SearchEvent, SearchGame, TablebaseProbe, TablebaseMove,
+  AccountGame, AccountCollectionItem, AccountStarredGame, AccountStarredGames, AccountStarredPlayer,
+  AccountStarredPlayers, AccountStarState, PublicImportedGame, AccountNotification, AccountNotificationPage,
+  AccountNotificationChange, AccountNotificationTopic, AccountNotificationPreferences, AccountNotebook,
+  AccountNotebooks, AccountNotebookDetail,
 } from './schema.js';
 
 export interface PageOptions { page?: number; pageSize?: number }
@@ -29,6 +38,8 @@ export interface PublicGameFilters extends PageOptions {
   until?: number;
   sort?: 'asc' | 'desc' | 'event';
 }
+export interface GalleryFilters extends PageOptions { query?: string }
+export type SiteSearchKind = 'games' | 'events' | 'players';
 export interface IterationOptions extends RequestOptions {
   /** Stop after this many games without fetching another page. */
   limit?: number;
@@ -145,6 +156,46 @@ export class ClassicChessClient {
   async eventNames(query?: string, options?: RequestOptions): Promise<string[]> {
     return (await this.publicEvents(query, options)).results.map(event => event.name);
   }
+  publicEvent(slug: string, options?: RequestOptions): Promise<PublicEventDetail> {
+    return this.json(`/api/v1/public/events/${segment(slug)}/`, {}, options);
+  }
+  publicEventAbout(slug: string, options?: RequestOptions): Promise<PublicEventAbout> {
+    return this.json(`/api/v1/public/events/${segment(slug)}/about/`, {}, options);
+  }
+  gallery(filters: GalleryFilters = {}, options?: RequestOptions): Promise<GalleryPage> {
+    return this.json('/api/v1/public/gallery/', { ...pageQuery(filters), q: filters.query }, options);
+  }
+  galleryPhoto(photoId: string, options?: RequestOptions): Promise<GalleryPhotoDetail> {
+    return this.json(`/api/v1/public/gallery/${segment(String(photoId))}/`, {}, options);
+  }
+  beginnerGames(options?: RequestOptions): Promise<PublicBeginnerGames> {
+    return this.json('/api/v1/public/beginner-games/', {}, options);
+  }
+  dailyGame(options?: RequestOptions): Promise<PublicDailyGame> {
+    return this.json('/api/v1/public/daily/', {}, options);
+  }
+  /** The site search box: a grouped preview, or one page of one result kind. */
+  siteSearch(query: string, options?: RequestOptions): Promise<SiteSearchPreview>;
+  siteSearch(query: string, kind: SiteSearchKind, page?: number, options?: RequestOptions): Promise<SiteSearchPage>;
+  siteSearch(query: string, kindOrOptions?: SiteSearchKind | RequestOptions, page?: number, options?: RequestOptions): Promise<SiteSearchPreview | SiteSearchPage> {
+    if (typeof query !== 'string' || !query.trim() || [...query].length > 120) {
+      throw new ApiError('Use a search query of 1 to 120 characters.', { code: 'invalid_query' });
+    }
+    if (typeof kindOrOptions !== 'string') return this.json('/api/v1/public/search/', { q: query }, kindOrOptions);
+    if (!['games', 'events', 'players'].includes(kindOrOptions)) {
+      throw new ApiError('kind must be games, events, or players.', { code: 'invalid_query' });
+    }
+    if (page !== undefined && (!Number.isSafeInteger(page) || page < 1)) {
+      throw new ApiError('page must be a positive integer.', { code: 'invalid_pagination' });
+    }
+    return this.json('/api/v1/public/search/', { q: query, kind: kindOrOptions, page }, options);
+  }
+  tablebase(fen: string, options?: RequestOptions): Promise<TablebaseProbe> {
+    if (typeof fen !== 'string' || !fen.trim() || new TextEncoder().encode(fen).length > 200) {
+      throw new ApiError('Use a FEN of at most 200 bytes.', { code: 'invalid_query' });
+    }
+    return this.json('/api/v1/tablebase/', { fen }, options);
+  }
   annotatedBooks(options?: RequestOptions): Promise<AnnotatedBooks> {
     return this.json('/api/v1/annotated/books/', {}, options);
   }
@@ -159,6 +210,13 @@ export class ClassicChessClient {
   }
   publicPgn(token: string, options?: RequestOptions): Promise<string> {
     return this.text(`/api/v1/public/games/${gameToken(token)}/pgn/`, {}, options);
+  }
+  /** A game another account imported and made public, by the username and slug in its page address. */
+  publicImportedGame(username: string, gameSlug: string, options?: RequestOptions): Promise<PublicImportedGame> {
+    return this.json(`/api/v1/public/imported-games/${usernameSegment(username)}/${segment(gameSlug)}/`, {}, options);
+  }
+  publicImportedPgn(username: string, gameSlug: string, options?: RequestOptions): Promise<string> {
+    return this.text(`/api/v1/public/imported-games/${usernameSegment(username)}/${segment(gameSlug)}/pgn/`, {}, options);
   }
   /** One export is limited to 300 games by the API. Use iteratePublicGames for a complete archive. */
   exportPublicGames(filters: Omit<PublicGameFilters, keyof PageOptions> & ExportOptions = {}, options?: RequestOptions): Promise<string> {
@@ -233,4 +291,6 @@ export class ClassicChessClient {
   }
 }
 export { ApplicationClient } from './application.js';
-export type { ApplicationRequest, ApplicationResponse } from './application.js';
+export type {
+  ApplicationDownload, ApplicationRequest, ApplicationResponse, GifOrientation, NotificationPreferenceChange,
+} from './application.js';

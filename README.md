@@ -143,6 +143,7 @@ if (books[0]) {
 | `publicNotableGames(slug)` | Ordered `results` with titles, context and games |
 | `publicGames(filters?)`, `iteratePublicGames(filters?, options?)` | One page / async game iterator |
 | `publicGame(token)`, `publicPgn(token)` | Game detail / raw PGN text |
+| `publicImportedGame(username, gameSlug)`, `publicImportedPgn(username, gameSlug)` | A game another account imported and made public, by its page address |
 | `pgnTextForGames(pgnUrls)` | Combine returned `api_pgn` URLs into one PGN string, preserving their order |
 | `exportPublicGames(filters?)`, `exportMasterGames(filters)` | PGN or NDJSON bundle, **at most 300 games**; `format: "ndjson"` selects JSON lines |
 | `masterGames(filters)`, `iterateMasterGames(filters)` | MasterDB page / async iterator |
@@ -182,6 +183,26 @@ lower-bound counts until `count_is_exact` is true; `page_count` can grow as you
 page. Iteration follows `next` until null, including when the server's search
 result limit is reached. Inspect `hit_result_limit` and refine the query to
 reach other matches; iteration does not bypass the server cap.
+
+## Site pages, search and tablebase
+
+These reads use the same public `api` client and need no credential:
+
+```js
+const { results: photos, pagination } = await api.gallery({ query: 'tal', page: 1, pageSize: 24 });
+const photo = await api.galleryPhoto(String(photos[0].id));
+const guide = await api.beginnerGames();
+const { game: today } = await api.dailyGame(); // null when no Game of the Day is available
+const event = await api.publicEvent('wcc-1972');
+const about = await api.publicEventAbout('wcc-1972'); // biography, vitals and crosstable
+const preview = await api.siteSearch('fischer spassky'); // players, events and games
+const games = await api.siteSearch('tal', 'games', 2); // one kind, paginated
+const probe = await api.tablebase('8/8/8/8/8/2k5/2P5/2K5 w - - 0 1');
+```
+
+`tablebase` uses local Syzygy tables and falls back to the Lichess tablebase for
+positions with more pieces than the local tables cover, as the website does. It
+is rate limited per client; invalid FEN strings are rejected before any lookup.
 
 ## Errors and cancellation
 
@@ -258,8 +279,21 @@ the endpoint. Keep tokens in the trusted Node.js or Electron main process.
 | Read account and collections | `accountMe(token)`, `accountCollections(token)` |
 | Create a collection | `accountCreateCollection(name, token)` |
 | Import public player games | `accountImportPublicPlayerGames({ archivePlayer, name, collectionId, since, until }, token)` |
+| Add one game to a collection | `accountAddCollectionGame(collectionId, gameSlug, token)`; adding a game twice returns `changed: false` |
+| Starred players | `accountStarredPlayers(token, page, pageSize)`, `accountStarPlayer(slug, token)`, `accountUnstarPlayer(slug, token)` |
+| Starred games | `accountStarredGames(token, page, pageSize)`, `accountStarGame(slug, token)`, `accountUnstarGame(slug, token)` |
+| Change or delete an imported game | `accountSetImportedGameVisibility(slug, 'public' \| 'private', token)`, `accountDeleteImportedGame(slug, token)` |
 | Scan JPEG bytes | `scanPosition(imageBytes, token)`; `imageBytes` is a `Uint8Array` of up to 850,000 bytes |
-| Call other account, Notebook, Remote or Cast APIs | `request({ path, method, body, contentType, token })` |
+| Export GIFs | `masterGameGif(gameToken, token)`, `publicGameGif(slug, token)`, `annotatedGameGif(bookSlug, gameSlug, token)`, `publicImportedGameGif(username, slug, token)`, `accountImportedGameGif(slug, token)`; pass `'black'` after the token to flip the board |
+| Notifications | `accountNotifications(token, page, pageSize)`, `accountMarkNotificationRead(id, token)`, `accountMarkAllNotificationsRead(token)`, `accountDismissNotification(id, token)`, `accountNotificationPreferences(token)`, `accountUpdateNotificationPreferences({ topics, soundEnabled }, token)` |
+| Export Notebooks | `accountNotebooks(token)`, `accountNotebook(uuid, token)`, `accountNotebookChapterPgn(uuid, chapterId, token)`, `accountNotebookFile(uuid, token, password?)` |
+| Call other account, Notebook, Remote or Cast APIs | `request({ path, method, body, contentType, token })`, or `download({ path, token })` for files |
+
+File methods return `{ ok, status, bytes, contentType, filename, retryAfter, error }`.
+`bytes` is a `Uint8Array` holding the GIF, PGN or `.ccnb` file when `ok` is true;
+otherwise `error` holds the JSON error reply. GIF exports need a registered
+account, so any personal token or device session works, and they share the
+site limit on GIF exports: honor `retryAfter` after a 429.
 
 `request` accepts a relative `/api/v1/` or `/cast/api/mobile/` path. JSON text
 and binary `Uint8Array` bodies preserve their content type and bytes. Responses

@@ -9,7 +9,15 @@ export interface ClientOptions {
 }
 
 export interface RequestOptions { signal?: AbortSignal }
-export interface HttpResponse { status: number; text: string; retryAfter: string | null }
+export interface HttpResponse {
+  status: number;
+  text: string;
+  retryAfter: string | null;
+  /** The undecoded body, for GIF, PGN and Notebook file downloads. */
+  bytes: Uint8Array;
+  contentType: string | null;
+  contentDisposition: string | null;
+}
 export type Query = Record<string, string | number | boolean | null | undefined>;
 
 export class ApiError extends Error {
@@ -32,6 +40,14 @@ export class ApiError extends Error {
 export function segment(value: string): string {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,255}$/.test(value)) {
     throw new ApiError('Use an exact slug or token returned by the catalog.', { code: 'invalid_identifier' });
+  }
+  return value;
+}
+
+/** The username of the account that imported a game, from its page address; safe in a URL path. */
+export function usernameSegment(value: string): string {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9@.+_-]{1,150}$/.test(value) || value === '.' || value === '..') {
+    throw new ApiError('Use the exact username from the game page address.', { code: 'invalid_identifier' });
   }
   return value;
 }
@@ -87,7 +103,7 @@ export class Transport {
     catch (cause) { throw new ApiError('API returned an invalid URL.', { code: 'unsafe_url', cause }); }
     const masterRead = /^\/api\/v1\/games\/(?:g[0-9a-z]+-[0-9a-f]{12}\/(?:pgn\/)?)?$/.test(url.pathname);
     const publicTool = ['/api/v1/players/', '/api/v1/stats/', '/api/v1/games/export/',
-      '/api/v1/opening-explorer/', '/api/v1/opening-explorer/sources/'].includes(url.pathname);
+      '/api/v1/opening-explorer/', '/api/v1/opening-explorer/sources/', '/api/v1/tablebase/'].includes(url.pathname);
     if (url.origin !== this.baseUrl || url.username || url.password || url.hash
       || !masterRead && !publicTool && !/^\/api\/v1\/(?:public\/|annotated\/)/.test(url.pathname) && url.pathname !== '/api/v1/') {
       throw new ApiError('Refused a link outside the configured public API.', { code: 'unsafe_url' });
@@ -137,8 +153,13 @@ export class Transport {
       const response = await this.fetcher(url, {
         ...init, headers, redirect: 'error', credentials: 'omit', signal: controller.signal,
       });
-      const text = await this.body(response);
-      return { status: response.status, text, retryAfter: response.headers.get('Retry-After') };
+      const bytes = await this.body(response);
+      return {
+        status: response.status, text: new TextDecoder().decode(bytes), bytes,
+        retryAfter: response.headers.get('Retry-After'),
+        contentType: response.headers.get('Content-Type'),
+        contentDisposition: response.headers.get('Content-Disposition'),
+      };
     } catch (cause) {
       if (cause instanceof ApiError) throw cause;
       throw new ApiError(timedOut ? 'API request timed out.' : controller.signal.aborted ? 'API request aborted.' : 'API request failed.', {
@@ -150,16 +171,15 @@ export class Transport {
     }
   }
 
-  private async body(response: Response): Promise<string> {
+  private async body(response: Response): Promise<Uint8Array> {
     const declaredLength = Number.parseInt(response.headers.get('Content-Length') || '', 10);
     if (Number.isFinite(declaredLength) && declaredLength > this.maxBytes) {
       await response.body?.cancel().catch(() => undefined);
       throw new ApiError('API response exceeds maxResponseBytes.', { code: 'response_too_large' });
     }
     const reader = response.body?.getReader();
-    if (!reader) return '';
-    const decoder = new TextDecoder();
-    const chunks: string[] = [];
+    if (!reader) return new Uint8Array(0);
+    const chunks: Uint8Array[] = [];
     let length = 0;
     try {
       while (true) {
@@ -169,9 +189,15 @@ export class Transport {
         if (length > this.maxBytes) {
           throw new ApiError('API response exceeds maxResponseBytes.', { code: 'response_too_large' });
         }
-        chunks.push(decoder.decode(value, { stream: true }));
+        chunks.push(value);
       }
-      return chunks.join('') + decoder.decode();
+      const bytes = new Uint8Array(length);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return bytes;
     } finally {
       await reader.cancel().catch(() => undefined);
       reader.releaseLock();

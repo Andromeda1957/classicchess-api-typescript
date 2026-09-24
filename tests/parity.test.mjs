@@ -78,3 +78,68 @@ test('PGN bundles preserve order and reject links outside the configured public 
   await assert.rejects(() => api.pgnTextForGames(['https://elsewhere.test/api/v1/public/games/one/pgn/']), { code: 'unsafe_url' });
   assert.equal(calls.length, 2);
 });
+
+test('site page reads use versioned public routes without credentials', async () => {
+  const calls = [];
+  const api = new ClassicChessClient({ fetch: async (url, input) => {
+    calls.push({ url: new URL(url), input });
+    return Response.json({ source: 'public' });
+  } });
+  await api.gallery({ query: 'tal', page: 2, pageSize: 12 });
+  await api.galleryPhoto('67217590');
+  await api.beginnerGames();
+  await api.dailyGame();
+  await api.publicEvent('wcc-1972');
+  await api.publicEventAbout('wcc-1972');
+  await api.siteSearch('fischer spassky');
+  await api.siteSearch('tal', 'games', 2);
+  await api.tablebase('8/8/8/8/8/2k5/2P5/2K5 w - - 0 1');
+  assert.deepEqual(calls.map(c => c.url.pathname + c.url.search), [
+    '/api/v1/public/gallery/?page=2&page_size=12&q=tal', '/api/v1/public/gallery/67217590/',
+    '/api/v1/public/beginner-games/', '/api/v1/public/daily/', '/api/v1/public/events/wcc-1972/',
+    '/api/v1/public/events/wcc-1972/about/', '/api/v1/public/search/?q=fischer+spassky',
+    '/api/v1/public/search/?q=tal&kind=games&page=2',
+    '/api/v1/tablebase/?fen=8%2F8%2F8%2F8%2F8%2F2k5%2F2P5%2F2K5+w+-+-+0+1',
+  ]);
+  assert.ok(calls.every(c => !new Headers(c.input.headers).has('Authorization')));
+  for (const call of [() => api.publicEvent('../account/me'), () => api.galleryPhoto('x?y'), () => api.siteSearch(''),
+    () => api.siteSearch('x'.repeat(121)), () => api.siteSearch('tal', 'users'), () => api.siteSearch('tal', 'games', 0),
+    () => api.tablebase(''), () => api.tablebase('k'.repeat(201)), () => api.gallery({ pageSize: 500 })]) {
+    assert.throws(call);
+  }
+  assert.equal(calls.length, 9);
+});
+
+test('library helpers send exact methods, paths and bodies with explicit credentials', async () => {
+  const calls = [];
+  const api = new ApplicationClient({ fetch: async (url, input) => {
+    const parsed = new URL(url);
+    calls.push({ method: input.method, path: parsed.pathname + parsed.search, body: input.body, headers: input.headers });
+    return Response.json({ changed: true });
+  } });
+  assert.equal((await api.accountAddCollectionGame(7, 'tal-vs-larsen', 'fixture')).data.changed, true);
+  await api.accountStarredPlayers('fixture', 2, 10);
+  await api.accountStarPlayer('mikhail-tal', 'fixture');
+  await api.accountUnstarPlayer('mikhail-tal', 'fixture');
+  await api.accountStarredGames('fixture');
+  await api.accountStarGame('g1', 'fixture');
+  await api.accountUnstarGame('g1', 'fixture');
+  await api.accountSetImportedGameVisibility('mine', 'public', 'fixture');
+  await api.accountDeleteImportedGame('mine', 'fixture');
+  assert.deepEqual(calls.map(c => `${c.method} ${c.path}`), [
+    'POST /api/v1/account/collections/7/items/', 'GET /api/v1/account/starred/players/?page=2&page_size=10',
+    'PUT /api/v1/account/starred/players/mikhail-tal/', 'DELETE /api/v1/account/starred/players/mikhail-tal/',
+    'GET /api/v1/account/starred/games/?page=1&page_size=50', 'PUT /api/v1/account/starred/games/g1/',
+    'DELETE /api/v1/account/starred/games/g1/', 'PATCH /api/v1/account/imported-games/mine/',
+    'DELETE /api/v1/account/imported-games/mine/',
+  ]);
+  assert.deepEqual(JSON.parse(calls[0].body), { game: 'tal-vs-larsen' });
+  assert.deepEqual(JSON.parse(calls[7].body), { visibility: 'public' });
+  assert.ok(calls.every(c => new Headers(c.headers).get('Authorization') === 'Bearer fixture'));
+  for (const call of [() => api.accountAddCollectionGame(0, 'g', 't'), () => api.accountAddCollectionGame(7, '../me', 't'),
+    () => api.accountStarPlayer('a/b', 't'), () => api.accountUnstarGame('', 't'), () => api.accountStarredGames('t', 1, 500),
+    () => api.accountSetImportedGameVisibility('mine', 'PUBLIC', 't'), () => api.accountDeleteImportedGame('x?y', 't')]) {
+    assert.throws(call);
+  }
+  assert.equal(calls.length, 9);
+});
