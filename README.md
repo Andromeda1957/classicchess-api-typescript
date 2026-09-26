@@ -287,7 +287,37 @@ the endpoint. Keep tokens in the trusted Node.js or Electron main process.
 | Export GIFs | `masterGameGif(gameToken, token)`, `publicGameGif(slug, token)`, `annotatedGameGif(bookSlug, gameSlug, token)`, `publicImportedGameGif(username, slug, token)`, `accountImportedGameGif(slug, token)`; pass `'black'` after the token to flip the board |
 | Notifications | `accountNotifications(token, page, pageSize)`, `accountMarkNotificationRead(id, token)`, `accountMarkAllNotificationsRead(token)`, `accountDismissNotification(id, token)`, `accountNotificationPreferences(token)`, `accountUpdateNotificationPreferences({ topics, soundEnabled }, token)` |
 | Export Notebooks | `accountNotebooks(token)`, `accountNotebook(uuid, token)`, `accountNotebookChapterPgn(uuid, chapterId, token)`, `accountNotebookFile(uuid, token, password?)` |
+| Play the Gym's bots | `accountGym(token)`, `accountGymGames(token, page, pageSize)`, `accountGymNewGame(botKey, token, { color, time, minutes, increment })`, `accountGymGame(id, token)`, `accountGymMove(id, uci, ply, token)`, `accountGymBotMove(id, ply, token)`, `accountGymTakeBack(id, token)`, `accountGymResign(id, token)`, `accountGymClock(id, token)`, `accountGymAbort(id, token)`, `accountGymDeleteGame(id, token)`, `accountGymGamePgn(id, token)` |
 | Call other account, Notebook, Remote or Cast APIs | `request({ path, method, body, contentType, token })`, or `download({ path, token })` for files |
+
+Any account can play the Gym's bots; the moves are computed on the server.
+Personal tokens need `gym:read` to read games and `gym:play` to start and play
+them. Send the `ply` from the latest game state with each move: a stale ply
+returns 409 and plays nothing, so a repeated request is safe. The bot engine
+plays one move at a time. While it is busy, `accountGymBotMove` returns 429
+with `capacity_exhausted`: wait `retryAfter` seconds and ask again with the
+same ply. Each account has an hour of engine time; once it is spent the answer
+is 429 `engine_budget` with `retryAfter` set to the seconds until the hour
+ends. An account starts at most 30 games an hour. This `gym.mjs` plays one move
+against Morphy:
+
+```js
+import { setTimeout as sleep } from 'node:timers/promises';
+import { ApplicationClient } from '@classicchess/api';
+
+const token = process.env.CLASSICCHESS_API_TOKEN; // a token with gym:read and gym:play
+if (!token) throw new Error('Set CLASSICCHESS_API_TOKEN to your personal API token first');
+const api = new ApplicationClient();
+const created = await api.accountGymNewGame('morphy', token, { color: 'white', time: '5+0' });
+if (!created.ok) throw new Error(`${created.status} ${JSON.stringify(created.data)}`);
+const game = (await api.accountGymMove(created.data.id, 'e2e4', created.data.ply, token)).data;
+let reply = await api.accountGymBotMove(game.id, game.ply, token);
+while (reply.status === 429 && reply.data.error?.code === 'capacity_exhausted') {
+  await sleep(Number(reply.retryAfter ?? 1) * 1000);
+  reply = await api.accountGymBotMove(game.id, game.ply, token);
+}
+console.log(reply.status, reply.data.sans, reply.data.clock);
+```
 
 File methods return `{ ok, status, bytes, contentType, filename, retryAfter, error }`.
 `bytes` is a `Uint8Array` holding the GIF, PGN or `.ccnb` file when `ok` is true;

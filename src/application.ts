@@ -2,7 +2,7 @@ import { ApiError, Transport, segment, usernameSegment, type ClientOptions, type
 import type {
   AccountCollectionItem, AccountNotebookDetail, AccountNotebooks, AccountNotificationChange,
   AccountNotificationPage, AccountNotificationPreferences, AccountStarState, AccountStarredGames,
-  AccountStarredPlayers,
+  AccountStarredPlayers, GymAborted, GymDeleted, GymGamePage, GymGameState, GymHome,
 } from './schema.js';
 
 type Json = Record<string, unknown>;
@@ -46,6 +46,49 @@ function attachmentName(disposition: string | null): string | null {
 function collectionId(value: number): number {
   if (!Number.isSafeInteger(value) || value < 1) throw new ApiError('Use a positive collection ID.', { code: 'invalid_request' });
   return value;
+}
+
+const UCI_MOVE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+
+function gymGame(gameId: number): string {
+  return `/api/v1/account/gym/games/${positiveId(gameId, 'game ID')}/`;
+}
+
+function ply(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new ApiError('Use the ply from the game state: a whole number from 0.', { code: 'invalid_request' });
+  }
+  return value;
+}
+
+/** A new Gym game. time is 'unlimited', a preset such as '3+0', or 'custom' with minutes and increment. */
+export interface GymNewGameOptions {
+  color?: 'white' | 'black' | 'random';
+  time?: string;
+  minutes?: number;
+  increment?: number;
+}
+
+function gymNewGameBody(game: GymNewGameOptions): Json {
+  const color = game.color ?? 'white';
+  const time = game.time ?? 'unlimited';
+  if (color !== 'white' && color !== 'black' && color !== 'random') {
+    throw new ApiError('color must be white, black or random.', { code: 'invalid_request' });
+  }
+  if (typeof time !== 'string' || !time) {
+    throw new ApiError('time must be unlimited, a preset such as 3+0, or custom.', { code: 'invalid_request' });
+  }
+  if (time !== 'custom') {
+    if (game.minutes !== undefined || game.increment !== undefined) {
+      throw new ApiError('minutes and increment apply only to time "custom".', { code: 'invalid_request' });
+    }
+    return { color, time };
+  }
+  const { minutes, increment } = game;
+  if (!Number.isSafeInteger(minutes) || minutes! < 1 || !Number.isSafeInteger(increment) || increment! < 0) {
+    throw new ApiError('A custom time needs whole minutes from 1 and increment seconds from 0.', { code: 'invalid_request' });
+  }
+  return { color, time, minutes, increment };
 }
 
 export interface ApplicationRequest extends RequestOptions {
@@ -228,6 +271,72 @@ export class ApplicationClient {
     if (password === undefined) return this.download({ ...options, path, token, accept });
     if (typeof password !== 'string' || !password) throw new ApiError('Use a non-empty password.', { code: 'invalid_request' });
     return this.download({ ...options, path, token, accept, method: 'POST', body: JSON.stringify({ password }) });
+  }
+
+  // The Gym: play the site's bots. Personal tokens need gym:read to read and
+  // gym:play for the rest; device sessions pass both.
+  /** The bots, the time controls a new game may use and the newest page of your games. */
+  accountGym(token: string, pageSize = 20, options: RequestOptions = {}): Promise<ApplicationResponse<GymHome>> {
+    libraryPage(1, pageSize);
+    return this.request({ ...options, path: `/api/v1/account/gym/?page_size=${pageSize}`, token });
+  }
+  /** Your games, newest first; player 'others' is for the Gym's review accounts only. */
+  accountGymGames(token: string, page = 1, pageSize = 20, player: 'me' | 'others' = 'me',
+    options: RequestOptions = {}): Promise<ApplicationResponse<GymGamePage>> {
+    if (player !== 'me' && player !== 'others') throw new ApiError('player must be me or others.', { code: 'invalid_request' });
+    const query = libraryPage(page, pageSize) + (player === 'others' ? '&player=others' : '');
+    return this.request({ ...options, path: `/api/v1/account/gym/games/?${query}`, token });
+  }
+  /** Start a game (201). */
+  accountGymNewGame(botKey: string, token: string, game: GymNewGameOptions = {},
+    options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {
+    const body = JSON.stringify(gymNewGameBody(game));
+    return this.request({ ...options, path: `/api/v1/account/gym/bots/${segment(botKey)}/games/`, method: 'POST', body, token });
+  }
+  accountGymGame(gameId: number, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {
+    return this.request({ ...options, path: gymGame(gameId), token });
+  }
+  accountGymGamePgn(gameId: number, token: string, options: RequestOptions = {}): Promise<ApplicationDownload> {
+    return this.download({ ...options, path: `${gymGame(gameId)}pgn/`, token, accept: 'application/x-chess-pgn' });
+  }
+  /** Play a UCI move such as 'e2e4' at the ply you have seen; a stale ply is 409 and plays nothing. */
+  accountGymMove(gameId: number, move: string, atPly: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {
+    if (typeof move !== 'string' || !UCI_MOVE.test(move)) {
+      throw new ApiError('Use a UCI move such as e2e4 or e7e8q.', { code: 'invalid_request' });
+    }
+    return this.gymPost(gameId, 'move/', token, options, { move, ply: ply(atPly) });
+  }
+  /**
+   * Ask for the bot's move. A 429 capacity_exhausted means the engine is busy: wait retryAfter
+   * seconds and ask again with the same ply. A 429 engine_budget means this account's hour of
+   * engine time is spent until retryAfter seconds from now.
+   */
+  accountGymBotMove(gameId: number, atPly: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {
+    return this.gymPost(gameId, 'bot-move/', token, options, { ply: ply(atPly) });
+  }
+  accountGymResign(gameId: number, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {
+    return this.gymPost(gameId, 'resign/', token, options);
+  }
+  accountGymTakeBack(gameId: number, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {
+    return this.gymPost(gameId, 'takeback/', token, options);
+  }
+  /** Settle the clock when one you show reaches zero; the server decides. */
+  accountGymClock(gameId: number, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {
+    return this.gymPost(gameId, 'clock/', token, options);
+  }
+  /** Abort (and delete) a game before your first move. */
+  accountGymAbort(gameId: number, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<GymAborted>> {
+    return this.gymPost(gameId, 'abort/', token, options);
+  }
+  accountGymDeleteGame(gameId: number, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<GymDeleted>> {
+    return this.request({ ...options, path: gymGame(gameId), method: 'DELETE', token });
+  }
+  private gymPost<T>(gameId: number, action: string, token: string, options: RequestOptions,
+    body?: Json): Promise<ApplicationResponse<T>> {
+    return this.request({ ...options, path: gymGame(gameId) + action, method: 'POST', token,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   }
 
   async scanPosition(image: Uint8Array, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
