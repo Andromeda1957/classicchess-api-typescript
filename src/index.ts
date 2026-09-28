@@ -31,6 +31,10 @@ export interface ExportOptions { tokens?: string[]; format?: 'pgn' | 'ndjson'; p
 export interface ExplorerFilters {
   fen?: string; play?: string; moves?: number; topGames?: number; sourceType?: string; sourceKey?: string;
 }
+/** Lichess Explorer: no player covers the whole Lichess database; a Lichess username covers that player's games. */
+export interface LichessExplorerFilters {
+  fen?: string; player?: string; color?: 'both' | 'white' | 'black'; result?: 'all' | 'win' | 'loss' | 'draw';
+}
 export interface PublicGameFilters extends PageOptions {
   query?: string;
   archivePlayer?: string;
@@ -107,6 +111,27 @@ export class ClassicChessClient {
   }
   explorerSources(options?: RequestOptions): Promise<Record<string, unknown>> {
     return this.json('/api/v1/opening-explorer/sources/', {}, options);
+  }
+  /** Explore a position in the Lichess database; Classic Chess relays it with its own Lichess credential. */
+  lichessExplorer(filters: LichessExplorerFilters = {}, options?: RequestOptions): Promise<Record<string, unknown>> {
+    const player = (filters.player ?? '').trim();
+    const color = filters.color ?? 'both';
+    const result = filters.result ?? 'all';
+    if (filters.fen !== undefined && filters.fen.length > 100) {
+      throw new ApiError('Use a FEN of at most 100 characters.', { code: 'invalid_query' });
+    }
+    if (player && !/^[A-Za-z0-9_-]{2,30}$/.test(player)) {
+      throw new ApiError('Use a valid Lichess username.', { code: 'invalid_query' });
+    }
+    if (!['both', 'white', 'black'].includes(color) || !['all', 'win', 'loss', 'draw'].includes(result)) {
+      throw new ApiError('color must be both, white or black; result must be all, win, loss or draw.', { code: 'invalid_query' });
+    }
+    if (!player && result !== 'all') {
+      throw new ApiError('A Lichess username is needed for result filters.', { code: 'invalid_query' });
+    }
+    return this.json('/api/v1/opening-explorer/lichess/', player
+      ? { fen: filters.fen || undefined, player, color, result }
+      : { fen: filters.fen || undefined }, options);
   }
   exportMasterGames(filters: ExportOptions & { query?: string }, options?: RequestOptions): Promise<string> {
     if (!filters.tokens?.length && !filters.query) throw new ApiError('Use a query or game tokens.', { code: 'invalid_export' });

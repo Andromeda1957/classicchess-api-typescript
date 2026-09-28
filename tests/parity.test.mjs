@@ -94,20 +94,27 @@ test('site page reads use versioned public routes without credentials', async ()
   await api.siteSearch('fischer spassky');
   await api.siteSearch('tal', 'games', 2);
   await api.tablebase('8/8/8/8/8/2k5/2P5/2K5 w - - 0 1');
+  await api.lichessExplorer();
+  await api.lichessExplorer({ fen: '8/8/8/8/8/2k5/2P5/2K5 w - - 0 1', player: 'DrNykterstein', color: 'white', result: 'win' });
   assert.deepEqual(calls.map(c => c.url.pathname + c.url.search), [
     '/api/v1/public/gallery/?page=2&page_size=12&q=tal', '/api/v1/public/gallery/67217590/',
     '/api/v1/public/beginner-games/', '/api/v1/public/daily/', '/api/v1/public/events/wcc-1972/',
     '/api/v1/public/events/wcc-1972/about/', '/api/v1/public/search/?q=fischer+spassky',
     '/api/v1/public/search/?q=tal&kind=games&page=2',
     '/api/v1/tablebase/?fen=8%2F8%2F8%2F8%2F8%2F2k5%2F2P5%2F2K5+w+-+-+0+1',
+    '/api/v1/opening-explorer/lichess/',
+    '/api/v1/opening-explorer/lichess/?fen=8%2F8%2F8%2F8%2F8%2F2k5%2F2P5%2F2K5+w+-+-+0+1&player=DrNykterstein&color=white&result=win',
   ]);
   assert.ok(calls.every(c => !new Headers(c.input.headers).has('Authorization')));
   for (const call of [() => api.publicEvent('../account/me'), () => api.galleryPhoto('x?y'), () => api.siteSearch(''),
     () => api.siteSearch('x'.repeat(121)), () => api.siteSearch('tal', 'users'), () => api.siteSearch('tal', 'games', 0),
-    () => api.tablebase(''), () => api.tablebase('k'.repeat(201)), () => api.gallery({ pageSize: 500 })]) {
+    () => api.tablebase(''), () => api.tablebase('k'.repeat(201)), () => api.gallery({ pageSize: 500 }),
+    () => api.lichessExplorer({ player: 'a' }), () => api.lichessExplorer({ player: 'x/../me' }),
+    () => api.lichessExplorer({ result: 'win' }), () => api.lichessExplorer({ player: 'abc', color: 'red' }),
+    () => api.lichessExplorer({ fen: 'k'.repeat(101) })]) {
     assert.throws(call);
   }
-  assert.equal(calls.length, 9);
+  assert.equal(calls.length, 11);
 });
 
 test('library helpers send exact methods, paths and bodies with explicit credentials', async () => {

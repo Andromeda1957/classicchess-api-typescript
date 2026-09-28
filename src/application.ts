@@ -309,8 +309,8 @@ export class ApplicationClient {
   }
   /**
    * Ask for the bot's move. A 429 capacity_exhausted means the engine is busy: wait retryAfter
-   * seconds and ask again with the same ply. A 429 engine_budget means this account's hour of
-   * engine time is spent until retryAfter seconds from now.
+   * seconds and ask again with the same ply. A 429 engine_budget means this account has used its
+   * 30 minutes of engine time for the current hour; ask again after retryAfter seconds.
    */
   accountGymBotMove(gameId: number, atPly: number, token: string,
     options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {

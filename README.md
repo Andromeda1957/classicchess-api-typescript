@@ -150,6 +150,7 @@ if (books[0]) {
 | `masterGame(token)`, `masterPgn(token)` | MasterDB detail / PGN |
 | `players(query, { limit })`, `masterStats({ query })` | Player resolver and full statistics |
 | `explorer({ play, fen, moves, topGames, sourceType, sourceKey })`, `explorerSources()` | Opening statistics and available sources |
+| `lichessExplorer({ fen, player, color, result })` | Lichess opening statistics relayed through Classic Chess, so no Lichess token is needed; no player covers the whole Lichess database, a Lichess username covers that player's games |
 | `annotatedGames(bookSlug, page?)`, `iterateAnnotatedGames(bookSlug, page?, options?)` | One book page / async game iterator |
 | `annotatedGame(bookSlug, gameSlug)` | Game detail with annotation notes |
 | `annotatedPgn(bookSlug, gameSlug?)` | One game's PGN, or the complete book when gameSlug is omitted |
@@ -296,9 +297,9 @@ them. Send the `ply` from the latest game state with each move: a stale ply
 returns 409 and plays nothing, so a repeated request is safe. The bot engine
 plays one move at a time. While it is busy, `accountGymBotMove` returns 429
 with `capacity_exhausted`: wait `retryAfter` seconds and ask again with the
-same ply. Each account has an hour of engine time; once it is spent the answer
-is 429 `engine_budget` with `retryAfter` set to the seconds until the hour
-ends. An account starts at most 30 games an hour. This `gym.mjs` plays one move
+same ply. Each account may use 30 minutes of engine time in each hour; once it
+is spent the answer is 429 `engine_budget` with `retryAfter` set to the seconds
+until that hour ends. An account starts at most 30 games an hour. This `gym.mjs` plays one move
 against Morphy:
 
 ```js
