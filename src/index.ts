@@ -39,10 +39,15 @@ export interface PublicGameFilters extends PageOptions {
   query?: string;
   archivePlayer?: string;
   archiveEvent?: string;
+  /** Which fields `query` searches. Omitted means `all`. */
+  searchMode?: PublicGameSearchMode;
   since?: number;
   until?: number;
   sort?: 'asc' | 'desc' | 'event';
 }
+/** `players`: players, event, site and date. `openings`: opening name and ECO. `all`: both. */
+export type PublicGameSearchMode = 'all' | 'players' | 'openings';
+const PUBLIC_GAME_SEARCH_MODES: readonly string[] = ['all', 'players', 'openings'];
 export interface GalleryFilters extends PageOptions { query?: string }
 export type SiteSearchKind = 'games' | 'events' | 'players';
 export interface IterationOptions extends RequestOptions {
@@ -63,9 +68,13 @@ function pageQuery(filters: PageOptions): Query {
 
 function gameQuery(filters: PublicGameFilters): Query {
   if (filters.sort === 'event' && !filters.archiveEvent) throw new ApiError('sort=event requires archiveEvent.', { code: 'invalid_query' });
+  if (filters.searchMode !== undefined && !PUBLIC_GAME_SEARCH_MODES.includes(filters.searchMode)) {
+    throw new ApiError('searchMode must be all, players or openings.', { code: 'invalid_query' });
+  }
   return {
     ...pageQuery(filters),
     q: filters.query, archive_player: filters.archivePlayer, archive_event: filters.archiveEvent,
+    search_mode: filters.searchMode,
     since: filters.since, until: filters.until, sort: filters.sort,
   };
 }

@@ -108,9 +108,9 @@ test('discovery, profile, nullable bio and curated order retain server data', as
 test('queries encode user text and public filters using API parameter names', async () => {
   const { client, calls } = fake([{}, {}]);
   await client.publicPlayers('Tal & Keres?');
-  await client.publicGames({ query: 'B33 & wins', archivePlayer: 'Mikhail_Tal', archiveEvent: 'event', since: 1950, until: 1960, sort: 'desc', page: 2, pageSize: 3 });
+  await client.publicGames({ query: 'B33 & wins', archivePlayer: 'Mikhail_Tal', archiveEvent: 'event', searchMode: 'openings', since: 1950, until: 1960, sort: 'desc', page: 2, pageSize: 3 });
   assert.equal(calls[0].url.searchParams.get('q'), 'Tal & Keres?');
-  assert.deepEqual(Object.fromEntries(calls[1].url.searchParams), { page: '2', page_size: '3', q: 'B33 & wins', archive_player: 'Mikhail_Tal', archive_event: 'event', since: '1950', until: '1960', sort: 'desc' });
+  assert.deepEqual(Object.fromEntries(calls[1].url.searchParams), { page: '2', page_size: '3', q: 'B33 & wins', archive_player: 'Mikhail_Tal', archive_event: 'event', search_mode: 'openings', since: '1950', until: '1960', sort: 'desc' });
 });
 
 test('canonical and legacy public tokens retrieve detail and raw PGN', async () => {
@@ -199,6 +199,7 @@ test('identifiers and base URLs reject path injection and embedded credentials',
   }
   for (const page of [0, -1, 1.5, NaN]) assert.throws(() => client.publicGames({ page }), { code: 'invalid_pagination' });
   assert.throws(() => client.publicGames({ pageSize: 101 }), { code: 'invalid_pagination' });
+  assert.throws(() => client.publicGames({ searchMode: 'events' }), { code: 'invalid_query' });
 });
 
 test('structured errors retain status, API code and Retry-After, including proxy failures', async () => {
