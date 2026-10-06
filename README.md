@@ -189,6 +189,7 @@ const { results: photos, pagination } = await api.gallery({ query: 'tal', page: 
 const photo = await api.galleryPhoto(String(photos[0].id));
 const guide = await api.beginnerGames();
 const { game: today } = await api.dailyGame(); // null when no Game of the Day is available
+const { event: landmark } = await api.eventOfTheDay(); // the homepage's Event of the day, or null
 const event = await api.publicEvent('wcc-1972');
 const about = await api.publicEventAbout('wcc-1972'); // biography, vitals and crosstable
 const preview = await api.siteSearch('fischer spassky'); // players, events and games
@@ -281,7 +282,7 @@ the endpoint. Keep tokens in the trusted Node.js or Electron main process.
 | Change or delete an imported game | `accountSetImportedGameVisibility(slug, 'public' \| 'private', token)`, `accountDeleteImportedGame(slug, token)` |
 | Scan JPEG bytes | `scanPosition(imageBytes, token)`; `imageBytes` is a `Uint8Array` of up to 850,000 bytes |
 | Export GIFs | `masterGameGif(gameToken, token)`, `publicGameGif(slug, token)`, `annotatedGameGif(bookSlug, gameSlug, token)`, `publicImportedGameGif(username, slug, token)`, `accountImportedGameGif(slug, token)`; pass `'black'` after the token to flip the board |
-| Notifications | `accountNotifications(token, page, pageSize)`, `accountMarkNotificationRead(id, token)`, `accountMarkAllNotificationsRead(token)`, `accountDismissNotification(id, token)`, `accountNotificationPreferences(token)`, `accountUpdateNotificationPreferences({ topics, soundEnabled }, token)` |
+| Notifications | `accountNotifications(token, page, pageSize)`, `accountMarkNotificationRead(id, token)`, `accountMarkAllNotificationsRead(token)`, `accountDismissNotification(id, token)`, `accountDismissAllNotifications(token)`, `accountNotificationPreferences(token)`, `accountUpdateNotificationPreferences({ topics, soundEnabled }, token)` |
 | Export Notebooks | `accountNotebooks(token)`, `accountNotebook(uuid, token)`, `accountNotebookChapterPgn(uuid, chapterId, token)`, `accountNotebookFile(uuid, token, password?)` |
 | Play the Gym's bots | `accountGym(token)`, `accountGymGames(token, page, pageSize)`, `accountGymNewGame(botKey, token, { color, time, minutes, increment })`, `accountGymGame(id, token)`, `accountGymMove(id, uci, ply, token)`, `accountGymBotMove(id, ply, token)`, `accountGymTakeBack(id, token)`, `accountGymResign(id, token)`, `accountGymClock(id, token)`, `accountGymAbort(id, token)`, `accountGymDeleteGame(id, token)`, `accountGymGamePgn(id, token)` |
 | Call other account, Notebook, Remote or Cast APIs | `request({ path, method, body, contentType, token })`, or `download({ path, token })` for files |

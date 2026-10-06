@@ -3,7 +3,8 @@ import type {
   PublicNotableGames, PublicEventIndex, PublicEvents, PublicGame, PublicGamePage, AnnotatedBooks,
   AnnotatedGame, AnnotatedGamePage, MasterGame, MasterGameDetail, MasterGamePage,
   PublicEventDetail, PublicEventAbout, GalleryPage, GalleryPhotoDetail, PublicBeginnerGames,
-  PublicDailyGame, SiteSearchPreview, SiteSearchPage, TablebaseProbe, PublicImportedGame,
+  PublicDailyGame, PublicEventOfTheDay, SiteSearchPreview, SiteSearchPage, TablebaseProbe,
+  PublicImportedGame,
 } from './schema.js';
 import { Transport, ApiError, segment, gameToken, usernameSegment } from './transport.js';
 import type { ClientOptions, RequestOptions, Query } from './transport.js';
@@ -15,7 +16,8 @@ export type {
   PublicPlayerBiography, PublicNotableGames, PublicEventIndex, PublicEvents, PublicGame, PublicGamePage,
   AnnotatedBooks, AnnotatedGame, AnnotatedGamePage, MasterGame, MasterGameDetail, MasterGamePage,
   PublicEvent, PublicEventDetail, PublicEventAbout, EventBiography, GalleryPhoto, GalleryPage, GalleryPhotoDetail,
-  PublicBeginnerGames, PublicGameSummary, PublicDailyGame, SiteSearchPreview, SiteSearchPage,
+  PublicBeginnerGames, PublicGameSummary, PublicDailyGame, PublicEventOfTheDay, EventOfTheDay,
+  EventOfTheDayWinner, SiteSearchPreview, SiteSearchPage,
   SearchPlayer, SearchEvent, SearchGame, TablebaseProbe, TablebaseMove,
   AccountGame, AccountCollectionItem, AccountStarredGame, AccountStarredGames, AccountStarredPlayer,
   AccountStarredPlayers, AccountStarState, PublicImportedGame, AccountNotification, AccountNotificationPage,
@@ -208,6 +210,10 @@ export class ClassicChessClient {
   }
   dailyGame(options?: RequestOptions): Promise<PublicDailyGame> {
     return this.json('/api/v1/public/daily/', {}, options);
+  }
+  /** The homepage's Event of the day; `event` is null when none can be published. */
+  eventOfTheDay(options?: RequestOptions): Promise<PublicEventOfTheDay> {
+    return this.json('/api/v1/public/event-of-the-day/', {}, options);
   }
   /** The site search box: a grouped preview, or one page of one result kind. */
   siteSearch(query: string, options?: RequestOptions): Promise<SiteSearchPreview>;

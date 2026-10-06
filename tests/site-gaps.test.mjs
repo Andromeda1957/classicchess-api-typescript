@@ -53,6 +53,7 @@ test('notification and notebook calls use exact methods, paths and bodies', asyn
     [() => client.accountNotifications('t', 2, 20), 'GET', '/api/v1/account/notifications/?page=2' + String.fromCharCode(38) + 'page_size=20', undefined],
     [() => client.accountMarkNotificationRead(5, 't'), 'POST', '/api/v1/account/notifications/5/read/', undefined],
     [() => client.accountMarkAllNotificationsRead('t'), 'POST', '/api/v1/account/notifications/read-all/', undefined],
+    [() => client.accountDismissAllNotifications('t'), 'POST', '/api/v1/account/notifications/dismiss-all/', undefined],
     [() => client.accountDismissNotification(5, 't'), 'DELETE', '/api/v1/account/notifications/5/', undefined],
     [() => client.accountNotificationPreferences('t'), 'GET', '/api/v1/account/notifications/preferences/', undefined],
     [() => client.accountUpdateNotificationPreferences({ topics: { new_games: false }, soundEnabled: true }, 't'),

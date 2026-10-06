@@ -282,6 +282,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/event-of-the-day/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get today's Event of the day
+         * @description The landmark tournament or title match on today's homepage card: its name, one-line tagline and the winner the card pictures, with links to the event write-up. It rotates daily and skips an event whose winner another of the day's homepage picks already pictures, so it always matches the homepage. event is null when no event can be published.
+         */
+        get: operations["getEventOfTheDay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/search/": {
         parameters: {
             query?: never;
@@ -1559,6 +1579,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/account/notifications/dismiss-all/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Empty the inbox
+         * @description Dismisses every notification in the inbox, as the website's empty-inbox trash does. Dismissed notifications leave the inbox and the unread count.
+         */
+        post: operations["dismissAllNotifications"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/account/notifications/preferences/": {
         parameters: {
             query?: never;
@@ -2627,6 +2667,30 @@ export interface components {
             date: string;
             game: components["schemas"]["PublicGameSummary"] | null;
         };
+        /** @description The study player the homepage pictures for the event. */
+        EventOfTheDayWinner: components["schemas"]["PlayerIdentity"] & {
+            portrait: {
+                image?: string;
+                thumbnail?: string;
+            };
+            urls: components["schemas"]["ResourceLinks"] & unknown;
+        };
+        EventOfTheDay: {
+            name: string;
+            slug: string;
+            /** @description One-line summary from the event write-up. */
+            tagline: string;
+            winner: components["schemas"]["EventOfTheDayWinner"];
+            urls: components["schemas"]["ResourceLinks"] & unknown;
+        };
+        PublicEventOfTheDay: {
+            /** @constant */
+            source: "public";
+            /** Format: date */
+            date: string;
+            /** @description null when no landmark event with a pictured winner can be published. */
+            event: components["schemas"]["EventOfTheDay"] | null;
+        };
         PublicBeginnerGames: {
             /** @constant */
             source: "public";
@@ -3281,6 +3345,7 @@ export interface components {
             ok: boolean;
             id?: number;
             marked?: number;
+            dismissed?: number;
             unread_count: number;
         };
         AccountNotificationTopic: {
@@ -3484,6 +3549,9 @@ export type GalleryPage = components['schemas']['GalleryPage'];
 export type GalleryPhotoDetail = components['schemas']['GalleryPhotoDetail'];
 export type PublicGameSummary = components['schemas']['PublicGameSummary'];
 export type PublicDailyGame = components['schemas']['PublicDailyGame'];
+export type EventOfTheDayWinner = components['schemas']['EventOfTheDayWinner'];
+export type EventOfTheDay = components['schemas']['EventOfTheDay'];
+export type PublicEventOfTheDay = components['schemas']['PublicEventOfTheDay'];
 export type PublicBeginnerGames = components['schemas']['PublicBeginnerGames'];
 export type SearchCounts = components['schemas']['SearchCounts'];
 export type SearchPlayer = components['schemas']['SearchPlayer'];
@@ -4030,6 +4098,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicDailyGame"];
+                };
+            };
+        };
+    };
+    getEventOfTheDay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The site date and today's event. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicEventOfTheDay"];
                 };
             };
         };
@@ -8061,6 +8149,44 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The number marked and the new unread count. Safe to retry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotificationChange"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the notifications:write scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    dismissAllNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The number dismissed and the new unread count. Safe to retry. */
             200: {
                 headers: {
                     [name: string]: unknown;

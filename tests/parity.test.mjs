@@ -89,6 +89,7 @@ test('site page reads use versioned public routes without credentials', async ()
   await api.galleryPhoto('67217590');
   await api.beginnerGames();
   await api.dailyGame();
+  await api.eventOfTheDay();
   await api.publicEvent('wcc-1972');
   await api.publicEventAbout('wcc-1972');
   await api.siteSearch('fischer spassky');
@@ -98,7 +99,8 @@ test('site page reads use versioned public routes without credentials', async ()
   await api.lichessExplorer({ fen: '8/8/8/8/8/2k5/2P5/2K5 w - - 0 1', player: 'DrNykterstein', color: 'white', result: 'win' });
   assert.deepEqual(calls.map(c => c.url.pathname + c.url.search), [
     '/api/v1/public/gallery/?page=2&page_size=12&q=tal', '/api/v1/public/gallery/67217590/',
-    '/api/v1/public/beginner-games/', '/api/v1/public/daily/', '/api/v1/public/events/wcc-1972/',
+    '/api/v1/public/beginner-games/', '/api/v1/public/daily/', '/api/v1/public/event-of-the-day/',
+    '/api/v1/public/events/wcc-1972/',
     '/api/v1/public/events/wcc-1972/about/', '/api/v1/public/search/?q=fischer+spassky',
     '/api/v1/public/search/?q=tal&kind=games&page=2',
     '/api/v1/tablebase/?fen=8%2F8%2F8%2F8%2F8%2F2k5%2F2P5%2F2K5+w+-+-+0+1',
@@ -114,7 +116,7 @@ test('site page reads use versioned public routes without credentials', async ()
     () => api.lichessExplorer({ fen: 'k'.repeat(101) })]) {
     assert.throws(call);
   }
-  assert.equal(calls.length, 11);
+  assert.equal(calls.length, 12);
 });
 
 test('library helpers send exact methods, paths and bodies with explicit credentials', async () => {

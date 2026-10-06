@@ -222,6 +222,10 @@ export class ApplicationClient {
   accountMarkAllNotificationsRead(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotificationChange>> {
     return this.request({ ...options, path: '/api/v1/account/notifications/read-all/', method: 'POST', token });
   }
+  /** Empty the inbox: dismiss every notification in it. */
+  accountDismissAllNotifications(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotificationChange>> {
+    return this.request({ ...options, path: '/api/v1/account/notifications/dismiss-all/', method: 'POST', token });
+  }
   accountDismissNotification(notificationId: number, token: string,
     options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotificationChange>> {
     const item = positiveId(notificationId, 'notification ID');
