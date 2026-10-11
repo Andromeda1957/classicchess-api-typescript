@@ -5,8 +5,7 @@ Read chess games, player biographies, tournaments and annotated books from
 [Classic Chess](https://classicchess.com/), search its larger MasterDB game
 database, retrieve opening statistics, and call account and application APIs.
 No runtime dependencies; public reads need no API key. Supports ES modules and
-CommonJS. The package name is `@classicchess/api`; install it from GitHub using
-the commands below while npm registry publication is pending.
+CommonJS. Install the MIT-licensed [`classicchess-sdk` package from npm](https://www.npmjs.com/package/classicchess-sdk).
 
 MIT licensed; see [LICENSE](LICENSE).
 For Android, use the [Kotlin SDK](https://github.com/Andromeda1957/classicchess-api-kotlin).
@@ -15,23 +14,23 @@ and [API reference and client comparison](https://classicchess.com/api/#sdk-clie
 
 ## Install and run your first example
 
-Install [Node.js 22 or newer](https://nodejs.org/) and [Git](https://git-scm.com/).
+Install [Node.js 22 or newer](https://nodejs.org/).
 Node.js includes npm, the package installer. Open a terminal and run:
 
 ```sh
 mkdir classicchess-example
 cd classicchess-example
 npm init -y
-npm install git+https://github.com/Andromeda1957/classicchess-api-typescript.git
+npm install classicchess-sdk
 ```
 
-This installs `@classicchess/api` directly from this public repository and builds
-it automatically. It has not been published to the npm registry yet.
+The npm package includes the built JavaScript and TypeScript definitions;
+no separate build step is needed in your app.
 
 Create a file named `example.mjs` in that same directory with:
 
 ```js
-import { ClassicChessClient } from '@classicchess/api';
+import { ClassicChessClient } from 'classicchess-sdk';
 
 const api = new ClassicChessClient();
 const names = await api.playerNames();
@@ -52,7 +51,7 @@ Replace the contents of `example.mjs` with this complete catalog example and
 run `node example.mjs` again:
 
 ```js
-import { ClassicChessClient } from '@classicchess/api';
+import { ClassicChessClient } from 'classicchess-sdk';
 
 const api = new ClassicChessClient({ userAgent: 'my-chess-app/1.0' });
 console.log(await api.playerNames()); // all curated player names
@@ -69,10 +68,22 @@ The later public API snippets use this `api` client. To try one, keep the import
 and client initialization above, then replace the rest of the file with that
 snippet. This avoids duplicate variable declarations between examples.
 
-If your app uses CommonJS (`.cjs` files), replace the import line with:
+For CommonJS, save this complete example as `example.cjs` and run
+`node example.cjs`. Awaited calls belong inside an async function:
 
 ```js
-const { ClassicChessClient } = require('@classicchess/api');
+const { ClassicChessClient } = require('classicchess-sdk');
+
+async function main() {
+  const api = new ClassicChessClient();
+  const names = await api.playerNames();
+  console.log(names.slice(0, 10));
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
 ```
 
 ## Profiles, biographies, notable games and PGN
@@ -208,7 +219,7 @@ after 30 seconds; configure `timeoutMs` and `maxResponseBytes` on the client.
 The response limit defaults to 32 MiB and counts decoded UTF-8 bytes.
 
 ```js
-import { ApiError } from '@classicchess/api';
+import { ApiError } from 'classicchess-sdk';
 
 const controller = new AbortController();
 try {
@@ -243,7 +254,7 @@ package and Electron. From a fresh terminal:
 ```sh
 git clone https://github.com/Andromeda1957/classicchess-api-typescript.git
 cd classicchess-api-typescript/examples/electron
-npm install electron git+https://github.com/Andromeda1957/classicchess-api-typescript.git
+npm install electron classicchess-sdk
 npx electron main.cjs
 ```
 
@@ -258,7 +269,7 @@ your signed-in Classic Chess profile settings with the scopes described in the
 This complete `account.mjs` example reads your account without changing it:
 
 ```js
-import { ApplicationClient } from '@classicchess/api';
+import { ApplicationClient } from 'classicchess-sdk';
 
 const token = process.env.CLASSICCHESS_API_TOKEN;
 if (!token) throw new Error('Set CLASSICCHESS_API_TOKEN to your personal API token first');
@@ -300,7 +311,7 @@ against Morphy:
 
 ```js
 import { setTimeout as sleep } from 'node:timers/promises';
-import { ApplicationClient } from '@classicchess/api';
+import { ApplicationClient } from 'classicchess-sdk';
 
 const token = process.env.CLASSICCHESS_API_TOKEN; // a token with gym:read and gym:play
 if (!token) throw new Error('Set CLASSICCHESS_API_TOKEN to your personal API token first');

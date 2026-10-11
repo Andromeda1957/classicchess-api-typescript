@@ -322,6 +322,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/themes/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Study theme taxonomy, board rules, measured precision and game inventory
+         * @description Automatic tags describe sustained board features. Curated tags and study_focus identify reviewed instructional examples; tags alone do not imply instructional quality.
+         */
+        get: operations["listStudyThemes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/games/": {
         parameters: {
             query?: never;
@@ -1351,6 +1371,61 @@ export interface paths {
         delete: operations["removeCollectionGame"];
         options?: never;
         head?: never;
+        /** Edit an item note or studied state */
+        patch: operations["updateCollectionItem"];
+        trace?: never;
+    };
+    "/api/v1/account/plans/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an ordered study plan with notes
+         * @description Atomic, up to 100 accessible games and 262144 request bytes. Uses only library:write. Same key and input return the existing plan; changed input returns 409. No partial plan is saved.
+         */
+        post: operations["createPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/collections/{collection_id}/reorder/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set manual collection playback order */
+        put: operations["reorderCollection"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/collections/{collection_id}/progress/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read collection notes and study progress */
+        get: operations["getPlanProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -2051,6 +2126,11 @@ export interface components {
             bio: components["schemas"]["Biography"];
         };
         PublicGame: {
+            /**
+             * @description Canonical game slug for plan items and canonical PGN routes.
+             * @default
+             */
+            slug: string;
             /** @description Canonical slug on new detail and notable routes; legacy player/slug tokens remain valid. */
             token: string;
             player: components["schemas"]["PlayerIdentity"] | null;
@@ -2073,6 +2153,19 @@ export interface components {
             round?: string;
             eco?: string;
             opening?: string;
+            themes?: {
+                slug: string;
+                label: string;
+                /** @enum {string} */
+                category: "pawn-structure" | "endgame" | "middlegame";
+                /** @enum {string} */
+                origin: "automatic" | "curated";
+            }[];
+            /**
+             * @description Original curated guidance, empty for unreviewed games.
+             * @default
+             */
+            study_focus: string;
             /** @description Curated round label when sort=event. */
             event_round?: string;
             move_count?: number | null;
@@ -2101,6 +2194,17 @@ export interface components {
             until?: number | null;
             /** @enum {string} */
             sort?: "asc" | "desc" | "event";
+            theme?: string[];
+            /** @default  */
+            eco: string;
+            /** @default  */
+            result: string;
+            /** @default  */
+            annotation_q: string;
+            /** @default  */
+            annotation_author: string;
+            /** @default  */
+            annotation_book: string;
             count: number;
             page: number;
             page_size: number;
@@ -3046,6 +3150,14 @@ export interface components {
             collection_item_id: number;
             /** Format: date-time */
             added_at: string | null;
+            /** @default 0 */
+            position: number;
+            /** @default  */
+            note: string;
+            /** @default false */
+            studied: boolean;
+            /** Format: date-time */
+            studied_at?: string | null;
             changed: boolean;
             message: string;
         };
@@ -3092,11 +3204,15 @@ export interface components {
         AccountCollection: {
             id: number;
             name: string;
+            /** @default  */
+            description: string;
+            /** @default false */
+            is_plan: boolean;
             /**
              * @description The collection's saved sort preference.
              * @enum {string}
              */
-            sort: "added" | "date_desc" | "date_asc" | "player";
+            sort: "added" | "date_desc" | "date_asc" | "player" | "manual";
             game_count: number;
             urls: components["schemas"]["ResourceLinks"];
         };
@@ -3109,6 +3225,14 @@ export interface components {
             collection_item_id: number;
             /** Format: date-time */
             added_at: string | null;
+            /** @default 0 */
+            position: number;
+            /** @default  */
+            note: string;
+            /** @default false */
+            studied: boolean;
+            /** Format: date-time */
+            studied_at?: string | null;
         };
         AccountCollectionPage: {
             collection: components["schemas"]["AccountCollection"];
@@ -3116,7 +3240,7 @@ export interface components {
              * @description The applied sort: the sort parameter, else the saved preference.
              * @enum {string}
              */
-            sort: "added" | "date_desc" | "date_asc" | "player";
+            sort: "added" | "date_desc" | "date_asc" | "player" | "manual";
             count: number;
             page: number;
             page_size: number;
@@ -4157,9 +4281,68 @@ export interface operations {
             };
         };
     };
+    listStudyThemes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete theme taxonomy with inventory links. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        source: "public";
+                        count: number;
+                        results: {
+                            slug: string;
+                            label: string;
+                            /** @enum {string} */
+                            category: "pawn-structure" | "endgame" | "middlegame";
+                            rule: string;
+                            precision: {
+                                predicted_positive: number;
+                                true_positive: number;
+                                precision: number | null;
+                                method: string;
+                            };
+                            game_count: number;
+                            urls: components["schemas"]["ResourceLinks"];
+                        }[];
+                    };
+                };
+            };
+            /** @description The reviewed catalog is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     listPublicGames: {
         parameters: {
             query?: {
+                /** @description Comma-separated taxonomy slugs from /public/themes/. All requested tags must match. */
+                theme?: string;
+                /** @description ECO code or prefix, for example D or D30. */
+                eco?: string;
+                result?: "1-0" | "0-1" | "1/2-1/2" | "*";
+                /** @description Up to eight terms searched in published annotation note text; all terms must match. */
+                annotation_q?: string;
+                /** @description Author text in the published book/source label. */
+                annotation_author?: string;
+                /** @description Book title text in the published annotation source label. */
+                annotation_book?: string;
                 q?: string;
                 archive_player?: string;
                 /** @description Event slug returned by the public events endpoint. */
@@ -4202,6 +4385,17 @@ export interface operations {
     exportPublicGames: {
         parameters: {
             query?: {
+                /** @description Comma-separated taxonomy slugs from /public/themes/. All requested tags must match. */
+                theme?: string;
+                /** @description ECO code or prefix, for example D or D30. */
+                eco?: string;
+                result?: "1-0" | "0-1" | "1/2-1/2" | "*";
+                /** @description Up to eight terms searched in published annotation note text; all terms must match. */
+                annotation_q?: string;
+                /** @description Author text in the published book/source label. */
+                annotation_author?: string;
+                /** @description Book title text in the published annotation source label. */
+                annotation_book?: string;
                 /** @description At most 8 searchable terms. */
                 q?: string;
                 archive_player?: string;
@@ -4271,6 +4465,17 @@ export interface operations {
     exportPublicGamesByToken: {
         parameters: {
             query?: {
+                /** @description Comma-separated taxonomy slugs from /public/themes/. All requested tags must match. */
+                theme?: string;
+                /** @description ECO code or prefix, for example D or D30. */
+                eco?: string;
+                result?: "1-0" | "0-1" | "1/2-1/2" | "*";
+                /** @description Up to eight terms searched in published annotation note text; all terms must match. */
+                annotation_q?: string;
+                /** @description Author text in the published book/source label. */
+                annotation_author?: string;
+                /** @description Book title text in the published annotation source label. */
+                annotation_book?: string;
                 /** @description At most 8 searchable terms. */
                 q?: string;
                 archive_player?: string;
@@ -5381,6 +5586,10 @@ export interface operations {
             query?: {
                 page?: number;
                 page_size?: number;
+                /** @description Search published annotation text; all words must match a note record. Maximum eight terms. */
+                q?: string;
+                /** @description Match author name words in the published source label. Maximum eight terms. */
+                author?: string;
             };
             header?: never;
             path: {
@@ -5399,7 +5608,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnnotatedGamePage"];
                 };
             };
-            /** @description page or page_size is invalid. */
+            /** @description Pagination, q or author is invalid; repeated search parameters are rejected. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6489,6 +6698,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
+            /** @description Operation rejected; retain the error message and do not retry writes blindly. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
         };
     };
     downloadAccountNotebookChapterPgn: {
@@ -6998,7 +7216,7 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 /** @description Defaults to the collection's saved preference; an unknown value means added. */
-                sort?: "added" | "date_desc" | "date_asc" | "player";
+                sort?: "added" | "date_desc" | "date_asc" | "player" | "manual";
             };
             header?: never;
             path: {
@@ -7121,7 +7339,10 @@ export interface operations {
                      * @description Saved sort preference for the collection.
                      * @enum {string}
                      */
-                    sort?: "added" | "date_desc" | "date_asc" | "player";
+                    sort?: "added" | "date_desc" | "date_asc" | "player" | "manual";
+                    description?: string;
+                    /** @description True selects manual order unless sort is supplied. */
+                    is_plan?: boolean;
                 };
             };
         };
@@ -7278,6 +7499,344 @@ export interface operations {
                 };
             };
             /** @description Personal API token is missing the library:write scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Collection not found for this account. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    updateCollectionItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    note?: string;
+                    /** @description Sets studied_at on false to true; false clears it. Repeated true preserves the timestamp. */
+                    studied?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved item and progress; safe to retry. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountCollectionItem"];
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the library:write scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Collection not found for this account. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    createPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @default  */
+                    description?: string;
+                    /** @description Unique per account. Retry with the same creation input. */
+                    idempotency_key: string;
+                    /** @description Games in exact playback order; each game appears once. */
+                    items: {
+                        game: string;
+                        /**
+                         * @description Plain text: why this game or what to look for.
+                         * @default
+                         */
+                        note?: string;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Previously created plan for the same idempotency key. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        collection: components["schemas"]["AccountCollection"];
+                        results: components["schemas"]["AccountCollectionEntry"][];
+                        progress: {
+                            count: number;
+                            studied: number;
+                            unstudied: number;
+                        };
+                        /** @description True above 100 entries; use paginated collection GET for the rest. */
+                        results_truncated: boolean;
+                    } & {
+                        created: boolean;
+                    };
+                };
+            };
+            /** @description New manual-order study plan. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        collection: components["schemas"]["AccountCollection"];
+                        results: components["schemas"]["AccountCollectionEntry"][];
+                        progress: {
+                            count: number;
+                            studied: number;
+                            unstudied: number;
+                        };
+                        /** @description True above 100 entries; use paginated collection GET for the rest. */
+                        results_truncated: boolean;
+                    } & {
+                        created: boolean;
+                    };
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the library:write scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description A requested game is unavailable. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Idempotency key already used for different creation input. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    reorderCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Every currently accessible collection item ID exactly once, in desired order. */
+                    item_ids: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Collection in its new manual order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        collection: components["schemas"]["AccountCollection"];
+                        results: components["schemas"]["AccountCollectionEntry"][];
+                        progress: {
+                            count: number;
+                            studied: number;
+                            unstudied: number;
+                        };
+                        /** @description True above 100 entries; use paginated collection GET for the rest. */
+                        results_truncated: boolean;
+                    };
+                };
+            };
+            /** @description IDs are incomplete, duplicated, invalid, or exceed the bound. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the library:write scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Collection not found for this account. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getPlanProgress: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                collection_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Progress for currently accessible collection items. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        count: number;
+                        studied: number;
+                        unstudied: number;
+                    } & {
+                        collection_id: number;
+                        results: {
+                            collection_item_id: number;
+                            game: string;
+                            position: number;
+                            note: string;
+                            studied: boolean;
+                            /** Format: date-time */
+                            studied_at: string | null;
+                        }[];
+                        page: number;
+                        page_size: number;
+                        page_count: number;
+                    };
+                };
+            };
+            /** @description Invalid pagination. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the library:read scope. */
             403: {
                 headers: {
                     [name: string]: unknown;

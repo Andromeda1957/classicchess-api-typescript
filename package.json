@@ -1,5 +1,5 @@
 {
-  "name": "@classicchess/api",
+  "name": "classicchess-sdk",
   "version": "0.1.0",
   "description": "Typed Classic Chess public archive client for Node.js and Electron",
   "license": "MIT",

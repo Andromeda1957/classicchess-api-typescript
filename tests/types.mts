@@ -1,4 +1,4 @@
-import { ClassicChessClient, ApiError, type PublicGame } from '@classicchess/api';
+import { ClassicChessClient, ApiError, type PublicGame } from 'classicchess-sdk';
 
 const api = new ClassicChessClient();
 const search = await api.masterGames({ query: 'karpov', page: 1, pageSize: 25 });

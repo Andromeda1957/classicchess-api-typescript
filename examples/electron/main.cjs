@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { ClassicChessClient } = require('@classicchess/api');
+const { ClassicChessClient } = require('classicchess-sdk');
 const { registerArchiveHandlers } = require('./bridge.cjs');
 
 app.whenReady().then(() => {
