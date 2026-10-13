@@ -23,7 +23,8 @@ export type {
   AccountStarredPlayers, AccountStarState, PublicImportedGame, AccountNotification, AccountNotificationPage,
   AccountNotificationChange, AccountNotificationTopic, AccountNotificationPreferences, AccountNotebook,
   AccountNotebooks, AccountNotebookDetail, GymBot, GymTimeControls, GymClock, GymGameSummary, GymGamePage,
-  GymHome, GymGameState, GymDeleted, GymAborted,
+  GymHome, GymGameState, GymDeleted, GymAborted, PuzzleSummary, PuzzleMove, PuzzleSolution, Puzzle,
+  PuzzleResultSaved, PuzzleHistoryEntry, PuzzleHistoryPage, PuzzleReset,
 } from './schema.js';
 
 export interface PageOptions { page?: number; pageSize?: number }
@@ -334,5 +335,5 @@ export class ClassicChessClient {
 export { ApplicationClient } from './application.js';
 export type {
   ApplicationDownload, ApplicationRequest, ApplicationResponse, GifOrientation, GymNewGameOptions,
-  NotificationPreferenceChange,
+  NotificationPreferenceChange, PuzzleResult,
 } from './application.js';

@@ -1062,6 +1062,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/account/puzzles/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The account's puzzle figures
+         * @description Puzzles come from master games and are for signed-in accounts only. A puzzle solved on the first try leaves the rotation until Reset puzzles; a missed one stays in it.
+         */
+        get: operations["getPuzzleSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/puzzles/next/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A random puzzle from the account's rotation
+         * @description The accepted solver moves at each point are the solution.moves entries whose after equals the moves played so far; any other solver move is wrong. Report missed at the first wrong move or when the solution is shown, and solved for a clean finish.
+         */
+        get: operations["getNextPuzzle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/puzzles/history/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The account's played puzzles, most recent first
+         * @description Reset puzzles keeps the history.
+         */
+        get: operations["listPuzzleHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/puzzles/reset/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset puzzles
+         * @description Every puzzle returns to the rotation. The history keeps its results.
+         */
+        post: operations["resetPuzzles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/puzzles/{public_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One puzzle
+         * @description Any published puzzle, for example one from the history.
+         */
+        get: operations["getPuzzle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/puzzles/{public_id}/result/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save how one play of a puzzle went
+         * @description A first-try solve stands until Reset puzzles, so the saved result can differ from the one sent.
+         */
+        post: operations["recordPuzzleResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/account/notebooks/": {
         parameters: {
             query?: never;
@@ -3625,6 +3745,124 @@ export interface components {
             id: number;
             aborted: boolean;
         };
+        PuzzleSummary: {
+            /** @description Puzzles solved on the first try since the last reset; they left the rotation. */
+            solved: number;
+            /** @description Puzzles missed since the last reset; they stay in the rotation. */
+            missed: number;
+            /** @description Puzzles the account still meets: every puzzle but its first-try solves. */
+            rotation: number;
+            /** @description Published puzzles. */
+            total: number;
+        };
+        PuzzleMove: {
+            /** @description The moves already played from the puzzle position, in UCI, solver and opponent alternating; empty for the first solver move. */
+            after: string[];
+            /** @description An accepted solver move in UCI. */
+            move: string;
+            /** @description The opponent's UCI reply, or null when this move solves the puzzle. */
+            reply: string | null;
+            /** @description True when the game itself continued with this move. */
+            from_game: boolean;
+        };
+        PuzzleSolution: {
+            /** @description The main line in UCI, solver and opponent moves alternating. */
+            main: string[];
+            /** @description The main line in SAN. */
+            main_san: string[];
+            /** @description Every accepted solver move, depth first. The accepted moves at a point are the entries whose after equals the moves played so far; any other solver move is wrong. */
+            moves: components["schemas"]["PuzzleMove"][];
+        };
+        Puzzle: {
+            /** @example p-000ccc1f */
+            id: string;
+            heading: string;
+            /** @description What the solver must find, for example "Find the best move for White." */
+            prompt: string;
+            /** @enum {string} */
+            solver: "white" | "black";
+            white: string;
+            black: string;
+            event: string;
+            year: number | null;
+            /** @enum {string} */
+            goal: "mate" | "advantage" | "equality";
+            goal_label: string;
+            mate_in: number | null;
+            /** @description Where lead starts: the game start, or fen itself when lead is empty. */
+            start_fen: string;
+            /** @description The game in UCI from start_fen to the puzzle position, so a client can replay it. Empty for a puzzle the game cannot reach, such as a book diagram. */
+            lead: string[];
+            /** @description The puzzle position, with the solver to move. */
+            fen: string;
+            solution: components["schemas"]["PuzzleSolution"];
+            /** @description The source game's facts, else the puzzle's own. */
+            info_rows: {
+                /** @description A PGN tag name such as Event, Date, White or WhiteElo. */
+                label: string;
+                value: string;
+            }[];
+            /** @description The source game, or null when it is not available. */
+            game: {
+                /** @description The game in the public JSON API: an archive game or a MasterDB game. */
+                api: string;
+                /** @description The game page at the puzzle position. */
+                html: string;
+                /** @description Half-moves from the start of the game to the puzzle position. */
+                ply: number;
+            } | null;
+            urls: {
+                api: string;
+                /** @description POST how this play went. */
+                result: string;
+                /** @description GET another puzzle from the rotation. */
+                next: string;
+                /** @description The puzzle on the website. */
+                html: string;
+            };
+        };
+        PuzzleResultSaved: {
+            id: string;
+            /**
+             * @description The saved result. A first-try solve stands until Reset puzzles, so replaying a solved puzzle never puts it back in the rotation.
+             * @enum {string}
+             */
+            result: "solved" | "missed";
+            summary: components["schemas"]["PuzzleSummary"];
+        };
+        PuzzleHistoryEntry: {
+            id: string;
+            /** @enum {string} */
+            result: "solved" | "missed";
+            /** @enum {string} */
+            result_label: "Solved" | "Incorrect";
+            /** @description When the result was saved, ISO 8601 in UTC. */
+            played_at: string;
+            white: string;
+            black: string;
+            event: string;
+            year: number | null;
+            fen: string;
+            /** @enum {string} */
+            solver: "white" | "black";
+            /** @description The UCI move that led to the puzzle position. */
+            last_move: string | null;
+            urls: {
+                api: string;
+            };
+        };
+        PuzzleHistoryPage: {
+            count: number;
+            page: number;
+            page_size: number;
+            page_count: number;
+            results: components["schemas"]["PuzzleHistoryEntry"][];
+        };
+        PuzzleReset: {
+            /** @description Results returned to the rotation; the history keeps them. */
+            reset: number;
+            summary: components["schemas"]["PuzzleSummary"];
+        };
     };
     responses: never;
     parameters: never;
@@ -3739,6 +3977,14 @@ export type GymHome = components['schemas']['GymHome'];
 export type GymGameState = components['schemas']['GymGameState'];
 export type GymDeleted = components['schemas']['GymDeleted'];
 export type GymAborted = components['schemas']['GymAborted'];
+export type PuzzleSummary = components['schemas']['PuzzleSummary'];
+export type PuzzleMove = components['schemas']['PuzzleMove'];
+export type PuzzleSolution = components['schemas']['PuzzleSolution'];
+export type Puzzle = components['schemas']['Puzzle'];
+export type PuzzleResultSaved = components['schemas']['PuzzleResultSaved'];
+export type PuzzleHistoryEntry = components['schemas']['PuzzleHistoryEntry'];
+export type PuzzleHistoryPage = components['schemas']['PuzzleHistoryPage'];
+export type PuzzleReset = components['schemas']['PuzzleReset'];
 export type $defs = Record<string, never>;
 export interface operations {
     discoverApi: {
@@ -6490,6 +6736,317 @@ export interface operations {
             };
             /** @description cannot_abort; the human has already moved. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getPuzzleSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description First-try solves, misses, the rotation and the total. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuzzleSummary"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the puzzles:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getNextPuzzle: {
+        parameters: {
+            query?: {
+                /** @description The puzzle just played, so another one comes next when the rotation has one. */
+                after?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The puzzle, its game so far and its solution. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Puzzle"];
+                };
+            };
+            /** @description invalid_puzzle_id: after is not a puzzle id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the puzzles:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description rotation_empty: every puzzle is solved on the first try. Reset puzzles to play them again. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listPuzzleHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of played puzzles. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuzzleHistoryPage"];
+                };
+            };
+            /** @description invalid_pagination. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the puzzles:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    resetPuzzles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many results returned to the rotation, and the new figures. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuzzleReset"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the puzzles:write scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getPuzzle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The puzzle, its game so far and its solution. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Puzzle"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the puzzles:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No such puzzle: an unknown or withdrawn id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    recordPuzzleResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description missed at the first wrong move or when the solution is shown; solved for a finish with no wrong move. Report each play once.
+                     * @enum {string}
+                     */
+                    result: "solved" | "missed";
+                };
+            };
+        };
+        responses: {
+            /** @description The saved result and the new figures. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuzzleResultSaved"];
+                };
+            };
+            /** @description invalid_result or invalid_json. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the puzzles:write scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No such puzzle: an unknown or withdrawn id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description too_large: the body is over 1 KB. */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };

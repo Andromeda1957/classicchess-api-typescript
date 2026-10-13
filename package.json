@@ -1,6 +1,6 @@
 {
   "name": "classicchess-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed Classic Chess public archive client for Node.js and Electron",
   "license": "MIT",
   "homepage": "https://classicchess.com/api/",

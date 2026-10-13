@@ -152,6 +152,43 @@ test('Gym requests use exact methods, paths and bodies', async () => {
   }
 });
 
+test('Puzzle requests use exact methods, paths and bodies', async () => {
+  const wire = recorder(() => Response.json({ ok: true }));
+  const client = new ApplicationClient({ fetch: wire.fetch });
+  const base = '/api/v1/account/puzzles/';
+  const cases = [
+    [() => client.accountPuzzles('t'), 'GET', base, undefined],
+    [() => client.accountPuzzleNext('t'), 'GET', `${base}next/`, undefined],
+    [() => client.accountPuzzleNext('t', 'p-000ccc1f'), 'GET', `${base}next/?after=p-000ccc1f`, undefined],
+    [() => client.accountPuzzle('p-000ccc1f', 't'), 'GET', `${base}p-000ccc1f/`, undefined],
+    [() => client.accountPuzzleResult('p-000ccc1f', 'missed', 't'), 'POST', `${base}p-000ccc1f/result/`, { result: 'missed' }],
+    [() => client.accountPuzzleHistory('t', 2, 10), 'GET', `${base}history/?page=2&page_size=10`, undefined],
+    [() => client.accountPuzzleReset('t'), 'POST', `${base}reset/`, undefined],
+  ];
+  for (const [call, method, path, body] of cases) {
+    assert.equal((await call()).data.ok, true);
+    const sent = wire.calls.at(-1);
+    assert.equal(sent.method, method);
+    assert.equal(sent.url.pathname + sent.url.search, path);
+    assert.equal(new Headers(sent.headers).get('Authorization'), 'Bearer t');
+    assert.deepEqual(sent.body === undefined || sent.body === null ? undefined : JSON.parse(sent.body), body);
+  }
+});
+
+test('Puzzle helpers reject invalid arguments before sending', async () => {
+  let calls = 0;
+  const client = new ApplicationClient({ fetch: async () => { calls++; return Response.json({}); } });
+  const invalid = [
+    () => client.accountPuzzle('../me', 't'), () => client.accountPuzzle('p-000CCC1F', 't'),
+    () => client.accountPuzzle(7, 't'), () => client.accountPuzzleNext('t', 'p-1'),
+    () => client.accountPuzzleResult('p-000ccc1f', 'skipped', 't'),
+    () => client.accountPuzzleResult('p-000ccc1f/..', 'solved', 't'),
+    () => client.accountPuzzleHistory('t', 0), () => client.accountPuzzleHistory('t', 1, 101),
+  ];
+  for (const call of invalid) await assert.rejects(async () => call());
+  assert.equal(calls, 0);
+});
+
 test('Gym PGN downloads, and a busy engine keeps its Retry-After without an automatic retry', async () => {
   const pgn = recorder(() => new Response('1. e4 *', { headers: {
     'Content-Type': 'application/x-chess-pgn', 'Content-Disposition': 'attachment; filename="gym.pgn"' } }));

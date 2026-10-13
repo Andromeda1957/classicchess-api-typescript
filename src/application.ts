@@ -3,6 +3,7 @@ import type {
   AccountCollectionItem, AccountNotebookDetail, AccountNotebooks, AccountNotificationChange,
   AccountNotificationPage, AccountNotificationPreferences, AccountStarState, AccountStarredGames,
   AccountStarredPlayers, GymAborted, GymDeleted, GymGamePage, GymGameState, GymHome,
+  Puzzle, PuzzleHistoryPage, PuzzleReset, PuzzleResultSaved, PuzzleSummary,
 } from './schema.js';
 
 type Json = Record<string, unknown>;
@@ -47,6 +48,17 @@ function collectionId(value: number): number {
   if (!Number.isSafeInteger(value) || value < 1) throw new ApiError('Use a positive collection ID.', { code: 'invalid_request' });
   return value;
 }
+
+const PUZZLE_ID = /^p-[0-9a-f]{8}$/;
+
+function puzzleId(value: string): string {
+  if (typeof value !== 'string' || !PUZZLE_ID.test(value)) {
+    throw new ApiError('Use a puzzle ID such as p-000ccc1f.', { code: 'invalid_request' });
+  }
+  return value;
+}
+
+export type PuzzleResult = 'solved' | 'missed';
 
 const UCI_MOVE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
 
@@ -341,6 +353,45 @@ export class ApplicationClient {
     body?: Json): Promise<ApplicationResponse<T>> {
     return this.request({ ...options, path: gymGame(gameId) + action, method: 'POST', token,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  }
+
+  // Puzzles, for signed-in accounts only. Personal tokens need puzzles:read to
+  // read and puzzles:write to save results and reset; device sessions pass both.
+  /** Your figures: first-try solves, misses, what is left in your rotation, and the total. */
+  accountPuzzles(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<PuzzleSummary>> {
+    return this.request({ ...options, path: '/api/v1/account/puzzles/', token });
+  }
+  /**
+   * A random puzzle from your rotation, another than `after` (the one just played) when there is
+   * one. A 404 rotation_empty means every puzzle is solved; reset to play them again.
+   */
+  accountPuzzleNext(token: string, after?: string, options: RequestOptions = {}): Promise<ApplicationResponse<Puzzle>> {
+    const query = after === undefined ? '' : `?after=${puzzleId(after)}`;
+    return this.request({ ...options, path: `/api/v1/account/puzzles/next/${query}`, token });
+  }
+  accountPuzzle(id: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Puzzle>> {
+    return this.request({ ...options, path: `/api/v1/account/puzzles/${puzzleId(id)}/`, token });
+  }
+  /**
+   * Save one play: 'missed' at the first wrong move or when the solution is shown, 'solved' for a
+   * clean finish. A first-try solve stands until reset, so the saved result can differ.
+   */
+  accountPuzzleResult(id: string, result: PuzzleResult, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<PuzzleResultSaved>> {
+    if (result !== 'solved' && result !== 'missed') {
+      throw new ApiError('result must be solved or missed.', { code: 'invalid_request' });
+    }
+    return this.request({ ...options, path: `/api/v1/account/puzzles/${puzzleId(id)}/result/`, method: 'POST',
+      body: JSON.stringify({ result }), token });
+  }
+  /** The puzzles you have played and how you did, most recent first. */
+  accountPuzzleHistory(token: string, page = 1, pageSize = 20,
+    options: RequestOptions = {}): Promise<ApplicationResponse<PuzzleHistoryPage>> {
+    return this.request({ ...options, path: `/api/v1/account/puzzles/history/?${libraryPage(page, pageSize)}`, token });
+  }
+  /** Every puzzle goes back into your rotation. Your history stays. */
+  accountPuzzleReset(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<PuzzleReset>> {
+    return this.request({ ...options, path: '/api/v1/account/puzzles/reset/', method: 'POST', token });
   }
 
   async scanPosition(image: Uint8Array, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {

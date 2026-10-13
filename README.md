@@ -296,6 +296,7 @@ the endpoint. Keep tokens in the trusted Node.js or Electron main process.
 | Notifications | `accountNotifications(token, page, pageSize)`, `accountMarkNotificationRead(id, token)`, `accountMarkAllNotificationsRead(token)`, `accountDismissNotification(id, token)`, `accountDismissAllNotifications(token)`, `accountNotificationPreferences(token)`, `accountUpdateNotificationPreferences({ topics, soundEnabled }, token)` |
 | Export Notebooks | `accountNotebooks(token)`, `accountNotebook(uuid, token)`, `accountNotebookChapterPgn(uuid, chapterId, token)`, `accountNotebookFile(uuid, token, password?)` |
 | Play the Gym's bots | `accountGym(token)`, `accountGymGames(token, page, pageSize)`, `accountGymNewGame(botKey, token, { color, time, minutes, increment })`, `accountGymGame(id, token)`, `accountGymMove(id, uci, ply, token)`, `accountGymBotMove(id, ply, token)`, `accountGymTakeBack(id, token)`, `accountGymResign(id, token)`, `accountGymClock(id, token)`, `accountGymAbort(id, token)`, `accountGymDeleteGame(id, token)`, `accountGymGamePgn(id, token)` |
+| Puzzles | `accountPuzzles(token)`, `accountPuzzleNext(token, after)`, `accountPuzzle(id, token)`, `accountPuzzleResult(id, 'solved' or 'missed', token)`, `accountPuzzleHistory(token, page, pageSize)`, `accountPuzzleReset(token)` |
 | Call other account, Notebook, Remote or Cast APIs | `request({ path, method, body, contentType, token })`, or `download({ path, token })` for files |
 
 Any account can play the Gym's bots; the moves are computed on the server.
@@ -325,6 +326,51 @@ while (reply.status === 429 && reply.data.error?.code === 'capacity_exhausted') 
   reply = await api.accountGymBotMove(game.id, game.ply, token);
 }
 console.log(reply.status, reply.data.sans, reply.data.clock);
+```
+
+Puzzles come from master games and are for signed-in accounts only. Personal
+tokens need `puzzles:read` to read puzzles, figures and history and
+`puzzles:write` to save a result or reset; cookie sessions are never enough.
+Each account has its own rotation: a puzzle solved on the first try leaves it
+until reset, and a missed one stays. A puzzle carries the game so far
+(`start_fen` and `lead`), the position (`fen`) and `solution.moves`: the
+accepted solver moves at each point are the entries whose `after` equals the
+moves played so far. Save each play once, `missed` at the first wrong move or
+when the solution is shown and `solved` for a clean finish. A 404
+`rotation_empty` reply means every puzzle is solved; reset to play them again.
+This `puzzle.mjs` plays one puzzle in the terminal and saves how it went:
+
+```js
+import { createInterface } from 'node:readline';
+import { ApplicationClient } from 'classicchess-sdk';
+
+const token = process.env.CLASSICCHESS_API_TOKEN; // a token with puzzles:read and puzzles:write
+if (!token) throw new Error('Set CLASSICCHESS_API_TOKEN to your personal API token first');
+const api = new ApplicationClient();
+const puzzle = await api.accountPuzzleNext(token);
+if (!puzzle.ok) throw new Error(`${puzzle.status} ${JSON.stringify(puzzle.data)}`);
+console.log(puzzle.data.prompt, puzzle.data.fen);
+const terminal = createInterface({ input: process.stdin });
+const lines = terminal[Symbol.asyncIterator]();
+const played = [];
+let result = 'solved';
+for (;;) {
+  process.stdout.write('Your move in UCI, such as e2e4: ');
+  const answer = ((await lines.next()).value ?? '').trim();
+  const step = puzzle.data.solution.moves.find(
+    (move) => move.move === answer && move.after.join(' ') === played.join(' '));
+  if (!step) {
+    result = 'missed';
+    break;
+  }
+  played.push(answer);
+  if (step.reply === null) break;
+  console.log('Reply:', step.reply);
+  played.push(step.reply);
+}
+terminal.close();
+const saved = await api.accountPuzzleResult(puzzle.data.id, result, token);
+console.log(saved.data.result, saved.data.summary);
 ```
 
 File methods return `{ ok, status, bytes, contentType, filename, retryAfter, error }`.
