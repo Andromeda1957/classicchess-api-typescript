@@ -1,23 +1,23 @@
 import type {
-  ApiDiscovery, PublicPlayers, PublicPlayerDetail, PublicPlayerBiography,
+  ApiDiscovery, PublicPlayers, PublicPlayerCards, PublicPlayerDetail, PublicPlayerBiography,
   PublicNotableGames, PublicEventIndex, PublicEvents, PublicGame, PublicGamePage, AnnotatedBooks,
   AnnotatedGame, AnnotatedGamePage, MasterGame, MasterGameDetail, MasterGamePage,
   PublicEventDetail, PublicEventAbout, GalleryPage, GalleryPhotoDetail, PublicBeginnerGames,
-  PublicDailyGame, PublicEventOfTheDay, SiteSearchPreview, SiteSearchPage, TablebaseProbe,
+  PublicDailyGame, PublicEventOfTheDay, PublicTodaysPicks, SiteSearchPreview, SiteSearchPage, TablebaseProbe,
   PublicImportedGame,
 } from './schema.js';
 import { Transport, ApiError, segment, gameToken, usernameSegment } from './transport.js';
-import type { ClientOptions, RequestOptions, Query } from './transport.js';
+import type { CcnbRequestOptions, ClientOptions, RequestOptions, Query } from './transport.js';
 
 export { ApiError } from './transport.js';
-export type { ClientOptions, RequestOptions } from './transport.js';
+export type { CcnbFormat, CcnbRequestOptions, ClientOptions, RequestOptions } from './transport.js';
 export type {
-  ApiDiscovery, Biography, PublicPlayer, PublicPlayers, PublicPlayerDetail,
-  PublicPlayerBiography, PublicNotableGames, PublicEventIndex, PublicEvents, PublicGame, PublicGamePage,
+  ApiDiscovery, Biography, PublicPlayer, PublicPlayers, PublicPlayerCard, PublicPlayerCards, PublicPlayerDetail,
+  PublicPlayerBiography, PublicPlayerCardBiography, GamePlayerPortraits, PublicNotableGames, PublicEventIndex, PublicEvents, PublicGame, PublicGamePage,
   AnnotatedBooks, AnnotatedGame, AnnotatedGamePage, MasterGame, MasterGameDetail, MasterGamePage,
   PublicEvent, PublicEventDetail, PublicEventAbout, EventBiography, GalleryPhoto, GalleryPage, GalleryPhotoDetail,
   PublicBeginnerGames, PublicGameSummary, PublicDailyGame, PublicEventOfTheDay, EventOfTheDay,
-  EventOfTheDayWinner, SiteSearchPreview, SiteSearchPage,
+  EventOfTheDayWinner, PublicTodaysPicks, PlayerOfTheDay, TodaysGame, OnThisDayPick, SiteSearchPreview, SiteSearchPage,
   SearchPlayer, SearchEvent, SearchGame, TablebaseProbe, TablebaseMove,
   AccountGame, AccountCollectionItem, AccountStarredGame, AccountStarredGames, AccountStarredPlayer,
   AccountStarredPlayers, AccountStarState, PublicImportedGame, AccountNotification, AccountNotificationPage,
@@ -170,8 +170,12 @@ export class ClassicChessClient {
   publicPlayers(query?: string, options?: RequestOptions): Promise<PublicPlayers> {
     return this.json('/api/v1/public/players/', { q: query }, options);
   }
+  /** The players catalog for lists and pickers: biography headline only, about a tenth the size. */
+  publicPlayerCards(query?: string, options?: RequestOptions): Promise<PublicPlayerCards> {
+    return this.json('/api/v1/public/players/cards/', { q: query }, options);
+  }
   async playerNames(query?: string, options?: RequestOptions): Promise<string[]> {
-    return (await this.publicPlayers(query, options)).results.map(player => player.name);
+    return (await this.publicPlayerCards(query, options)).results.map(player => player.name);
   }
   publicPlayer(slug: string, options?: RequestOptions): Promise<PublicPlayerDetail> {
     return this.json(`/api/v1/public/players/${segment(slug)}/`, {}, options);
@@ -216,6 +220,10 @@ export class ClassicChessClient {
   eventOfTheDay(options?: RequestOptions): Promise<PublicEventOfTheDay> {
     return this.json('/api/v1/public/event-of-the-day/', {}, options);
   }
+  /** Every face of today's homepage card: Player of the day, Game of the Day, On this day and Event of the day; each is null when absent. */
+  todaysPicks(options?: RequestOptions): Promise<PublicTodaysPicks> {
+    return this.json('/api/v1/public/todays-picks/', {}, options);
+  }
   /** The site search box: a grouped preview, or one page of one result kind. */
   siteSearch(query: string, options?: RequestOptions): Promise<SiteSearchPreview>;
   siteSearch(query: string, kind: SiteSearchKind, page?: number, options?: RequestOptions): Promise<SiteSearchPage>;
@@ -238,11 +246,15 @@ export class ClassicChessClient {
     }
     return this.json('/api/v1/tablebase/', { fen }, options);
   }
-  annotatedBooks(options?: RequestOptions): Promise<AnnotatedBooks> {
-    return this.json('/api/v1/annotated/books/', {}, options);
+  annotatedBooks(options: CcnbRequestOptions = {}): Promise<AnnotatedBooks> {
+    return this.transport.read(this.transport.url('/api/v1/annotated/books/'), 'json', options, options.ccnbFormat);
   }
-  async bookTitles(options?: RequestOptions): Promise<string[]> {
+  async bookTitles(options?: CcnbRequestOptions): Promise<string[]> {
     return (await this.annotatedBooks(options)).results.map(book => book.label);
+  }
+  /** Exact package bytes; use the same ccnbFormat as annotatedBooks for matching revisions. */
+  annotatedNotebookFile(bookSlug: string, options?: CcnbRequestOptions): Promise<Uint8Array> {
+    return this.transport.ccnbDownload(bookSlug, options);
   }
   publicGames(filters: PublicGameFilters = {}, options?: RequestOptions): Promise<PublicGamePage> {
     return this.json('/api/v1/public/games/', gameQuery(filters), options);

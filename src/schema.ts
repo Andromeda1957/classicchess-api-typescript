@@ -77,6 +77,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/players/cards/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every curated player as a compact card for player lists
+         * @description The same players, order, filters and links as listCuratedPlayers, with only the approved biography's headline (epithet, lifespan, crown) instead of its full text: about a twelfth of the bytes. Follow urls.api_bio or urls.api_detail for the biography when a player is opened.
+         */
+        get: operations["listCuratedPlayerCards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/players/{player_slug}/": {
         parameters: {
             query?: never;
@@ -294,6 +314,26 @@ export interface paths {
          * @description The landmark tournament or title match on today's homepage card: its name, one-line tagline and the winner the card pictures, with links to the event write-up. It rotates daily and skips an event whose winner another of the day's homepage picks already pictures, so it always matches the homepage. event is null when no event can be published.
          */
         get: operations["getEventOfTheDay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/todays-picks/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get today's homepage picks
+         * @description Every face of today's homepage card, in its order: Player of the day, Game of the Day, On this day and Event of the day, each with the portrait the card shows. They come from one daily chain in which a later pick skips a player an earlier one already pictures, so they always match the homepage. Each face is null when the homepage omits it.
+         */
+        get: operations["getTodaysPicks"];
         put?: never;
         post?: never;
         delete?: never;
@@ -636,6 +676,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/opening-explorer/lichess/games/{game_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Load a public Lichess game for the Opening Explorer
+         * @description Returns a validated PGN and game title without creating an account import. Only an eight-character game ID is accepted; the provider host is fixed. Clients at one address share 12 requests per 15 minutes, and game loading shares the existing remote-import concurrency pool.
+         */
+        get: operations["getLichessOpeningExplorerGame"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stats/": {
         parameters: {
             query?: never;
@@ -752,7 +812,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List every annotated book, with source metadata and download links */
+        /**
+         * List every annotated book, with source metadata and download links
+         * @description CCNB-Format: 3 selects representation-specific binary package revisions; no format choice defaults to legacy format 2 revisions. The catalog and downloadable package respond with CCNB-Format and Vary: CCNB-Format. Unsupported values return ccnb_format_unsupported. The ccnb_format=2 or 3 URL query is equivalent; header and query must agree. Use the same choice for package downloads.
+         */
         get: operations["listAnnotatedBooks"];
         put?: never;
         post?: never;
@@ -1231,13 +1294,13 @@ export interface paths {
         };
         /**
          * Download the whole Notebook as a .ccnb file
-         * @description Members may always export. Other accounts may export only when the owner allowed public exports.
+         * @description Members may always export. Other accounts may export only when the owner allowed public exports. Send CCNB-Format: 3 for the binary record container. Browser URLs may instead send ccnb_format=2 or 3; no format choice defaults to legacy format 2. Invalid or conflicting choices return ccnb_format_unsupported. Responses identify CCNB-Format and Vary on it, with representation-specific ETags. Capabilities that cannot be represented losslessly in format 2 are refused.
          */
         get: operations["downloadAccountNotebook"];
         put?: never;
         /**
          * Download the Notebook as a password-protected .ccnb file
-         * @description Members only. The password encrypts this one file and is not stored.
+         * @description Members only. The password encrypts this one file and is not stored. CCNB-Format: 3 negotiates authenticated binary blocks. The form URL may instead send ccnb_format=2 or 3; no choice defaults to legacy AES-GCM. Invalid or conflicting values return ccnb_format_unsupported. The response includes CCNB-Format, Vary: CCNB-Format and a representation-specific ETag.
          */
         post: operations["downloadEncryptedAccountNotebook"];
         delete?: never;
@@ -1908,6 +1971,16 @@ export interface components {
                 width: number;
                 height: number;
             } | null;
+            /** @description The archive player to picture beside the entry: its game's archive player, else its first related player with a public page; absent when none has a portrait. */
+            player?: {
+                name: string;
+                slug: string;
+                portrait: {
+                    image?: string;
+                    thumbnail?: string;
+                };
+                urls: components["schemas"]["ResourceLinks"] & unknown;
+            };
         };
         /** @description MasterDB search metadata. Tokens identify MasterDB games, not curated archive slugs. */
         MasterGame: {
@@ -1953,6 +2026,16 @@ export interface components {
             message: string | null;
             hint: string;
             results: components["schemas"]["MasterGame"][];
+            /** @description Selectable identities when a player name is ambiguous. */
+            player_choices?: {
+                name: string;
+                search_name: string;
+            }[];
+            /** @description Full player names for spelling help when the query resolves to one player; search_name preserves any year constraint and game results remain available. */
+            player_suggestions?: {
+                name: string;
+                search_name: string;
+            }[];
         };
         /** @description One newline-delimited JSON export record. */
         MasterGameExport: components["schemas"]["MasterGame"] & {
@@ -2234,6 +2317,43 @@ export interface components {
             count: number;
             results: components["schemas"]["PublicPlayer"][];
         };
+        /** @description The approved biography's headline; the full text is at the player's urls.api_bio. */
+        PublicPlayerCardBiography: {
+            epithet: string;
+            lifespan: string;
+            crown: string;
+        } | null;
+        PublicPlayerCard: components["schemas"]["PlayerIdentity"] & {
+            archive_bucket: {
+                key?: string;
+                label?: string;
+            };
+            game_count: number;
+            /** @description Game year span; not the player's lifespan. */
+            archive_years: string;
+            /** @description Caller-specific bookmark state; false for anonymous requests. */
+            bookmarked: boolean;
+            portrait: {
+                image?: string;
+                thumbnail?: string;
+            };
+            bio: components["schemas"]["PublicPlayerCardBiography"];
+            urls: components["schemas"]["ResourceLinks"] & unknown;
+        };
+        PublicPlayerCards: {
+            /** @constant */
+            source: "public";
+            query: string;
+            active_bucket: string;
+            archive_buckets: {
+                key: string;
+                label: string;
+                count: number;
+                active: boolean;
+            }[];
+            count: number;
+            results: components["schemas"]["PublicPlayerCard"][];
+        };
         PublicPlayerDetail: {
             /** @constant */
             source: "public";
@@ -2244,6 +2364,12 @@ export interface components {
             source: "public";
             player: components["schemas"]["PlayerIdentity"];
             bio: components["schemas"]["Biography"];
+        };
+        GamePlayerPortraits: {
+            /** @description Absolute URL of White's card portrait. */
+            white?: string;
+            /** @description Absolute URL of Black's card portrait. */
+            black?: string;
         };
         PublicGame: {
             /**
@@ -2301,6 +2427,8 @@ export interface components {
                 /** @description Site page for the player, event or Daily Game. */
                 url: string;
             }[];
+            /** @description Detail answers only: card portraits of the archive players this game names. A side without a known portrait is omitted; an empty object means neither has one, so no player search is needed. */
+            portraits?: components["schemas"]["GamePlayerPortraits"];
         };
         PublicGamePage: {
             /** @constant */
@@ -2890,6 +3018,11 @@ export interface components {
             /** Format: date */
             date: string;
             game: components["schemas"]["PublicGameSummary"] | null;
+            /** @description Portrait of game.player, the archive player the homepage pictures beside today's game; absent when there is no game or that player has no portrait. */
+            portrait?: {
+                image?: string;
+                thumbnail?: string;
+            };
         };
         /** @description The study player the homepage pictures for the event. */
         EventOfTheDayWinner: components["schemas"]["PlayerIdentity"] & {
@@ -2913,6 +3046,54 @@ export interface components {
             /** Format: date */
             date: string;
             /** @description null when no landmark event with a pictured winner can be published. */
+            event: components["schemas"]["EventOfTheDay"] | null;
+        };
+        /** @description The homepage's Player of the day: an approved biography with a portrait. */
+        PlayerOfTheDay: components["schemas"]["PlayerIdentity"] & {
+            /** @description Plain-text title the player is known by; may be empty. */
+            title: string;
+            /** @description Life years such as '1892–1964' or 'born 1975'; may be empty. */
+            life_years: string;
+            portrait: {
+                image?: string;
+                thumbnail?: string;
+            };
+            urls: components["schemas"]["ResourceLinks"] & unknown;
+        };
+        /** @description Today's Game of the Day as the homepage card shows it. */
+        TodaysGame: components["schemas"]["PublicGameSummary"] & {
+            /** @description Portrait of the game's archive player; absent when that player has none. */
+            portrait?: {
+                image?: string;
+                thumbnail?: string;
+            };
+        };
+        /** @description The homepage card's anniversary: a past game played on this date. */
+        OnThisDayPick: {
+            /** @description Surname leading the headline: the winner, else White. */
+            first: string;
+            /** @enum {string} */
+            verb: "beat" | "drew with" | "vs";
+            second: string;
+            year: number;
+            /** @description Event label without the year; may be empty. */
+            event: string;
+            game: components["schemas"]["PublicGameSummary"];
+            /** @description Portrait of the game's archive player; absent when that player has none. */
+            portrait?: {
+                image?: string;
+                thumbnail?: string;
+            };
+        };
+        /** @description The homepage card's faces in its order; each is null when the homepage omits it. */
+        PublicTodaysPicks: {
+            /** @constant */
+            source: "public";
+            /** Format: date */
+            date: string;
+            player: components["schemas"]["PlayerOfTheDay"] | null;
+            game: components["schemas"]["TodaysGame"] | null;
+            on_this_day: components["schemas"]["OnThisDayPick"] | null;
             event: components["schemas"]["EventOfTheDay"] | null;
         };
         PublicBeginnerGames: {
@@ -3504,9 +3685,12 @@ export interface components {
         MobileHome: {
             brand: string;
             summary: {
+                /** @description Players in the curated players catalog. */
                 players: number;
                 public_games: number;
                 annotated_books: number;
+                /** @description Series cards on the event-series catalog; absent from older servers. */
+                event_series?: number;
             };
             /** @description The Game of the Day; null when none can be published. */
             daily: {
@@ -3888,8 +4072,12 @@ export type Biography = components['schemas']['Biography'];
 export type BiographyQuote = components['schemas']['BiographyQuote'];
 export type PublicPlayer = components['schemas']['PublicPlayer'];
 export type PublicPlayers = components['schemas']['PublicPlayers'];
+export type PublicPlayerCardBiography = components['schemas']['PublicPlayerCardBiography'];
+export type PublicPlayerCard = components['schemas']['PublicPlayerCard'];
+export type PublicPlayerCards = components['schemas']['PublicPlayerCards'];
 export type PublicPlayerDetail = components['schemas']['PublicPlayerDetail'];
 export type PublicPlayerBiography = components['schemas']['PublicPlayerBiography'];
+export type GamePlayerPortraits = components['schemas']['GamePlayerPortraits'];
 export type PublicGame = components['schemas']['PublicGame'];
 export type PublicGamePage = components['schemas']['PublicGamePage'];
 export type PublicNotableGames = components['schemas']['PublicNotableGames'];
@@ -3914,6 +4102,10 @@ export type PublicDailyGame = components['schemas']['PublicDailyGame'];
 export type EventOfTheDayWinner = components['schemas']['EventOfTheDayWinner'];
 export type EventOfTheDay = components['schemas']['EventOfTheDay'];
 export type PublicEventOfTheDay = components['schemas']['PublicEventOfTheDay'];
+export type PlayerOfTheDay = components['schemas']['PlayerOfTheDay'];
+export type TodaysGame = components['schemas']['TodaysGame'];
+export type OnThisDayPick = components['schemas']['OnThisDayPick'];
+export type PublicTodaysPicks = components['schemas']['PublicTodaysPicks'];
 export type PublicBeginnerGames = components['schemas']['PublicBeginnerGames'];
 export type SearchCounts = components['schemas']['SearchCounts'];
 export type SearchPlayer = components['schemas']['SearchPlayer'];
@@ -4100,6 +4292,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PublicPlayers"];
                     "text/plain": string;
+                };
+            };
+            /** @description Query exceeds its bounds or requests an unsupported format. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listCuratedPlayerCards: {
+        parameters: {
+            query?: {
+                q?: string;
+                /** @description Archive era key returned in archive_buckets. An unknown key selects all eras. */
+                bucket?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete public player catalog as compact cards. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPlayerCards"];
                 };
             };
             /** @description Query exceeds its bounds or requests an unsupported format. */
@@ -4488,6 +4713,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicEventOfTheDay"];
+                };
+            };
+        };
+    };
+    getTodaysPicks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The site date and today's homepage picks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicTodaysPicks"];
                 };
             };
         };
@@ -5401,6 +5646,68 @@ export interface operations {
             };
         };
     };
+    getLichessOpeningExplorerGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description An exact public Lichess game ID. */
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A validated public game and title. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        title: string;
+                        pgn: string;
+                    };
+                };
+            };
+            /** @description The game ID is invalid or query parameters were supplied. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The game was not found or is not public. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Client budget or shared import capacity exhausted; honor Retry-After. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Provider unavailable, invalid PGN or admission unavailable; honor Retry-After when present. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     getPlayerStats: {
         parameters: {
             query?: {
@@ -5797,6 +6104,8 @@ export interface operations {
     listAnnotatedBooks: {
         parameters: {
             query?: {
+                /** @description Exact 2 or 3, equivalent to CCNB-Format; absent both defaults to 2. Repeated values or header disagreement are rejected. */
+                ccnb_format?: string;
                 /** @description JSON metadata by default; txt returns only the complete list of names or titles. */
                 format?: "json" | "txt";
             };
@@ -5830,6 +6139,8 @@ export interface operations {
     listAnnotatedGames: {
         parameters: {
             query?: {
+                /** @description Exact 2 or 3, equivalent to CCNB-Format; absent both defaults to 2. Repeated values or header disagreement are rejected. */
+                ccnb_format?: string;
                 page?: number;
                 page_size?: number;
                 /** @description Search published annotation text; all words must match a note record. Maximum eight terms. */
@@ -7145,7 +7456,10 @@ export interface operations {
     };
     downloadAccountNotebook: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Exact 2 or 3, equivalent to CCNB-Format; absent both defaults to 2. Repeated values or header disagreement are rejected. */
+                ccnb_format?: string;
+            };
             header?: never;
             path: {
                 notebook_uuid: string;
@@ -7161,6 +7475,15 @@ export interface operations {
                 };
                 content: {
                     "application/vnd.classicchess.notebook": string;
+                };
+            };
+            /** @description Unsupported CCNB-Format or content cannot be represented losslessly. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
             /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
@@ -7194,7 +7517,10 @@ export interface operations {
     };
     downloadEncryptedAccountNotebook: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Exact 2 or 3, equivalent to CCNB-Format; absent both defaults to 2. Repeated values or header disagreement are rejected. */
+                ccnb_format?: string;
+            };
             header?: never;
             path: {
                 notebook_uuid: string;

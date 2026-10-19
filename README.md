@@ -139,9 +139,11 @@ if (books[0]) {
 | --- | --- |
 | `discovery()` | API documentation and collection links |
 | `publicPlayers(query?)`, `playerNames(query?)` | Complete curated player catalog / names |
+| `publicPlayerCards(query?)` | The same players with only the biography headline (epithet, lifespan, crown), about a tenth the size; `playerNames` reads it |
 | `eventSeries(query?, series?)` | Complete series cards, search results, or series members |
 | `publicEvents(query?)`, `eventNames(query?)` | Complete event catalog / names |
-| `annotatedBooks()`, `bookTitles()` | Complete annotated book catalog / titles |
+| `annotatedBooks({ ccnbFormat })`, `bookTitles({ ccnbFormat })` | Complete annotated book catalog / titles; format is optional |
+| `annotatedNotebookFile(bookSlug, { ccnbFormat })` | Exact downloadable annotated Notebook bytes |
 | `publicPlayer(slug)` | Full profile in `player` |
 | `publicPlayerBio(slug)` | Approved `bio` or null, plus player identity |
 | `publicNotableGames(slug)` | Ordered `results` with titles, context and games |
@@ -201,6 +203,7 @@ const photo = await api.galleryPhoto(String(photos[0].id));
 const guide = await api.beginnerGames();
 const { game: today } = await api.dailyGame(); // null when no Game of the Day is available
 const { event: landmark } = await api.eventOfTheDay(); // the homepage's Event of the day, or null
+const picks = await api.todaysPicks(); // player, game, on_this_day and event; each may be null
 const event = await api.publicEvent('wcc-1972');
 const about = await api.publicEventAbout('wcc-1972'); // biography, vitals and crosstable
 const preview = await api.siteSearch('fischer spassky'); // players, events and games
@@ -294,10 +297,18 @@ the endpoint. Keep tokens in the trusted Node.js or Electron main process.
 | Scan JPEG bytes | `scanPosition(imageBytes, token)`; `imageBytes` is a `Uint8Array` of up to 850,000 bytes |
 | Export GIFs | `masterGameGif(gameToken, token)`, `publicGameGif(slug, token)`, `annotatedGameGif(bookSlug, gameSlug, token)`, `publicImportedGameGif(username, slug, token)`, `accountImportedGameGif(slug, token)`; pass `'black'` after the token to flip the board |
 | Notifications | `accountNotifications(token, page, pageSize)`, `accountMarkNotificationRead(id, token)`, `accountMarkAllNotificationsRead(token)`, `accountDismissNotification(id, token)`, `accountDismissAllNotifications(token)`, `accountNotificationPreferences(token)`, `accountUpdateNotificationPreferences({ topics, soundEnabled }, token)` |
-| Export Notebooks | `accountNotebooks(token)`, `accountNotebook(uuid, token)`, `accountNotebookChapterPgn(uuid, chapterId, token)`, `accountNotebookFile(uuid, token, password?)` |
+| Export Notebooks | `accountNotebooks(token)`, `accountNotebook(uuid, token)`, `accountNotebookChapterPgn(uuid, chapterId, token)`, `accountNotebookFile(uuid, token, password?, { ccnbFormat })` |
 | Play the Gym's bots | `accountGym(token)`, `accountGymGames(token, page, pageSize)`, `accountGymNewGame(botKey, token, { color, time, minutes, increment })`, `accountGymGame(id, token)`, `accountGymMove(id, uci, ply, token)`, `accountGymBotMove(id, ply, token)`, `accountGymTakeBack(id, token)`, `accountGymResign(id, token)`, `accountGymClock(id, token)`, `accountGymAbort(id, token)`, `accountGymDeleteGame(id, token)`, `accountGymGamePgn(id, token)` |
 | Puzzles | `accountPuzzles(token)`, `accountPuzzleNext(token, after)`, `accountPuzzle(id, token)`, `accountPuzzleResult(id, 'solved' or 'missed', token)`, `accountPuzzleHistory(token, page, pageSize)`, `accountPuzzleReset(token)` |
 | Call other account, Notebook, Remote or Cast APIs | `request({ path, method, body, contentType, token })`, or `download({ path, token })` for files |
+
+Notebook downloads accept `ccnbFormat: 2` for legacy exchange or `ccnbFormat: 3`
+for the binary record container. Omitting it retains legacy behavior. Use the
+same format with `annotatedBooks` and `annotatedNotebookFile` so package revisions
+match. The public package helper accepts a catalog slug, constructs the fixed
+same-origin download path, sends no account credentials, and returns a
+`Uint8Array`. It rejects redirects and unsupported format values. A Notebook
+with capabilities unavailable in legacy exchange requires format 3.
 
 Any account can play the Gym's bots; the moves are computed on the server.
 Personal tokens need `gym:read` to read games and `gym:play` to start and play
@@ -419,7 +430,7 @@ npm test
 same OpenAPI schemas validated by the Python/Django API tests. The generator
 has its own locked install in `codegen/`. It needs the TypeScript compiler API,
 which TypeScript 7 no longer ships, so `codegen/` pins TypeScript 6 while the
-SDK itself builds with TypeScript 7. After a contract change:
+SDK itself builds with TypeScript 7. After a contract change, from this directory:
 
 ```sh
 npm run generate:types

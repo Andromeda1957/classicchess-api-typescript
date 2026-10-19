@@ -19,6 +19,36 @@ function fake(payloads, extra = {}) {
   return { client, calls };
 }
 
+test('annotated catalog and fixed package endpoint use matching CCNB formats', async () => {
+  for (const ccnbFormat of [undefined, 2, 3]) {
+    const bytes = new Uint8Array([67, 67, 78, 66, 0, 3, 255]);
+    const { client, calls } = fake([{ results: [] }, new Response(bytes, { headers: { 'Content-Type': 'application/vnd.classicchess.notebook' } })]);
+    await client.annotatedBooks({ ccnbFormat });
+    assert.deepEqual(await client.annotatedNotebookFile('my-system', { ccnbFormat }), bytes);
+    assert.deepEqual(calls.map(call => call.url.pathname), ['/api/v1/annotated/books/', '/annotated/my-system/download/']);
+    for (const call of calls) {
+      const headers = new Headers(call.headers);
+      assert.equal(headers.get('CCNB-Format'), ccnbFormat === undefined ? null : String(ccnbFormat));
+      assert.equal(headers.get('Authorization'), null);
+      assert.equal(headers.get('Cookie'), null);
+      assert.equal(call.credentials, 'omit');
+      assert.equal(call.redirect, 'error');
+    }
+  }
+});
+
+test('annotated packages reject invalid formats, URLs and traversal before I/O', async () => {
+  const { client, calls } = fake([]);
+  for (const ccnbFormat of [1, 4, '3', true, null, NaN]) {
+    await assert.rejects(async () => client.annotatedBooks({ ccnbFormat }), { code: 'invalid_request' });
+    await assert.rejects(async () => client.annotatedNotebookFile('my-system', { ccnbFormat }), { code: 'invalid_request' });
+  }
+  for (const book of ['../my-system', 'https://elsewhere.test/book', 'book?format=3', 'book/download']) {
+    await assert.rejects(async () => client.annotatedNotebookFile(book), { code: 'invalid_identifier' });
+  }
+  assert.equal(calls.length, 0);
+});
+
 test('MasterDB search preserves approximate counts, limits and query paging', async () => {
   for (const query of ['karpov', 'Kasparov Karpov', 'Tal & Keres?']) {
     const payload = { query, count: 26, count_is_exact: false, page: 1, page_count: 2,
@@ -74,7 +104,7 @@ test('MasterDB iteration follows approximate-count pages and stops at the server
 
 test('catalogs distinguish full objects from names without silently paginating', async () => {
   for (const [full, names, field, path] of [
-    ['publicPlayers', 'playerNames', 'name', '/api/v1/public/players/'],
+    ['publicPlayerCards', 'playerNames', 'name', '/api/v1/public/players/cards/'],
     ['publicEvents', 'eventNames', 'name', '/api/v1/public/events/'],
     ['annotatedBooks', 'bookTitles', 'label', '/api/v1/annotated/books/'],
   ]) {
@@ -84,6 +114,7 @@ test('catalogs distinguish full objects from names without silently paginating',
     assert.deepEqual(await client[names](), ['Tal', 'Capablanca', 'Petrosian']);
     assert.equal(calls.length, 2);
     assert.equal(calls[0].url.pathname, path);
+    assert.equal(calls[1].url.pathname, path);
     assert.equal(new Headers(calls[0].headers).get('Accept'), 'application/json');
     assert.equal(calls[0].credentials, 'omit');
     assert.equal(calls[0].redirect, 'error');

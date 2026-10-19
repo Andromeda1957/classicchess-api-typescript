@@ -5,6 +5,33 @@ import { ApplicationClient, ClassicChessClient } from '../dist/esm/index.js';
 const NOTEBOOK = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const GIF = new Uint8Array([71, 73, 70, 56, 57, 97, 0, 255]);
 
+test('CCNB notebook exports negotiate an explicit format on GET and password POST', async () => {
+  const wire = recorder(() => new Response(GIF));
+  const client = new ApplicationClient({ fetch: wire.fetch });
+  for (const ccnbFormat of [undefined, 2, 3]) {
+    for (const password of [undefined, 'test-only-password']) {
+      assert.deepEqual((await client.accountNotebookFile(NOTEBOOK, 't', password, { ccnbFormat })).bytes, GIF);
+      const sent = wire.calls.at(-1), headers = new Headers(sent.headers);
+      assert.equal(sent.url.pathname, `/api/v1/account/notebooks/${NOTEBOOK}/file/`);
+      assert.equal(sent.url.search, '');
+      assert.equal(headers.get('CCNB-Format'), ccnbFormat === undefined ? null : String(ccnbFormat));
+      assert.equal(headers.get('Authorization'), 'Bearer t');
+      assert.equal(sent.method, password === undefined ? 'GET' : 'POST');
+      if (password !== undefined) assert.deepEqual(JSON.parse(sent.body), { password });
+    }
+  }
+});
+
+test('invalid CCNB formats and unrelated format-bearing requests fail before network I/O', async () => {
+  let calls = 0;
+  const client = new ApplicationClient({ fetch: async () => { calls++; return new Response(); } });
+  for (const ccnbFormat of [1, 4, '3', true, null, NaN]) {
+    await assert.rejects(async () => client.accountNotebookFile(NOTEBOOK, 't', undefined, { ccnbFormat }), { code: 'invalid_request' });
+  }
+  await assert.rejects(client.download({ path: '/api/v1/account/me/', token: 't', ccnbFormat: 3 }), { code: 'invalid_request' });
+  assert.equal(calls, 0);
+});
+
 function recorder(reply) {
   const calls = [];
   const fetch = async (url, init) => { calls.push({ url: new URL(url), ...init }); return reply(); };

@@ -1,4 +1,4 @@
-import { ClassicChessClient, ApiError, type PublicGame } from 'classicchess-sdk';
+import { ApplicationClient, ClassicChessClient, ApiError, type CcnbFormat, type PublicGame } from 'classicchess-sdk';
 
 const api = new ClassicChessClient();
 const search = await api.masterGames({ query: 'karpov', page: 1, pageSize: 25 });
@@ -21,6 +21,15 @@ api.masterGames({ query: 'Tal', page_size: 25 });
 void exactCount;
 const names: string[] = await api.playerNames();
 const books = await api.annotatedBooks();
+const ccnbFormat: CcnbFormat = 3;
+const packageBytes: Uint8Array = await api.annotatedNotebookFile('my-system', { ccnbFormat });
+await api.annotatedBooks({ ccnbFormat });
+await new ApplicationClient().accountNotebookFile('0f8fad5b-d9cb-469f-a165-70867728950e', 'fixture', undefined, { ccnbFormat });
+// @ts-expect-error Only negotiated CCNB formats 2 and 3 are supported.
+api.annotatedBooks({ ccnbFormat: 4 });
+// @ts-expect-error Format values are numeric, not arbitrary header text.
+new ApplicationClient().accountNotebookFile('0f8fad5b-d9cb-469f-a165-70867728950e', 'fixture', undefined, { ccnbFormat: '3' });
+void packageBytes;
 const firstBook = books.results[0];
 if (firstBook) {
   for await (const game of api.iterateAnnotatedGames(firstBook.slug)) {

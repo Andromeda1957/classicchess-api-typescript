@@ -1,4 +1,4 @@
-import { ApiError, Transport, segment, usernameSegment, type ClientOptions, type RequestOptions } from './transport.js';
+import { ApiError, Transport, ccnbFormatHeader, segment, usernameSegment, type CcnbRequestOptions, type ClientOptions, type RequestOptions } from './transport.js';
 import type {
   AccountCollectionItem, AccountNotebookDetail, AccountNotebooks, AccountNotificationChange,
   AccountNotificationPage, AccountNotificationPreferences, AccountStarState, AccountStarredGames,
@@ -103,7 +103,7 @@ function gymNewGameBody(game: GymNewGameOptions): Json {
   return { color, time, minutes, increment };
 }
 
-export interface ApplicationRequest extends RequestOptions {
+export interface ApplicationRequest extends CcnbRequestOptions {
   /** Relative API path, including encoded query parameters. Never a URL from an untrusted server. */
   path: string;
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -281,7 +281,7 @@ export class ApplicationClient {
       path: `/api/v1/account/notebooks/${notebookUuid(notebook)}/chapters/${chapter}/pgn/` });
   }
   /** The whole Notebook as .ccnb bytes; a password (members only) encrypts it. */
-  accountNotebookFile(notebook: string, token: string, password?: string, options: RequestOptions = {}): Promise<ApplicationDownload> {
+  accountNotebookFile(notebook: string, token: string, password?: string, options: CcnbRequestOptions = {}): Promise<ApplicationDownload> {
     const path = `/api/v1/account/notebooks/${notebookUuid(notebook)}/file/`;
     const accept = 'application/vnd.classicchess.notebook';
     if (password === undefined) return this.download({ ...options, path, token, accept });
@@ -444,6 +444,14 @@ export class ApplicationClient {
     if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) throw new ApiError('Invalid API method.', { code: 'invalid_method' });
     if (method === 'GET' && input.body !== undefined) throw new ApiError('GET cannot carry a body.', { code: 'invalid_request' });
     const headers = new Headers({ Accept: accept });
+    const ccnbFormat = ccnbFormatHeader(input.ccnbFormat);
+    if (ccnbFormat !== undefined) {
+      const notebook = /^\/api\/v1\/account\/notebooks\/([^/]+)\/file\/$/.exec(pathname);
+      if (!notebook || !NOTEBOOK_UUID.test(notebook[1]!) || url.search) {
+        throw new ApiError('CCNB negotiation requires the fixed Notebook file endpoint.', { code: 'invalid_request' });
+      }
+      headers.set('CCNB-Format', ccnbFormat);
+    }
     if (token !== undefined) headers.set('Authorization', `Bearer ${token}`);
     if (input.body !== undefined) {
       if (typeof input.body !== 'string' && !(input.body instanceof Uint8Array)) throw new ApiError('Use JSON text or bytes.', { code: 'invalid_request' });

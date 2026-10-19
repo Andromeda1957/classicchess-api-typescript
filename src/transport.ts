@@ -6,9 +6,19 @@ export interface ClientOptions {
   /** Maximum decoded response size; defaults to 32 MiB. */
   maxResponseBytes?: number;
   fetch?: typeof globalThis.fetch;
+  /** Opt selected JSON reads into bounded, memory-only ETag revalidation. Never serves offline data. */
+  revalidate?: (url: URL) => boolean;
 }
 
 export interface RequestOptions { signal?: AbortSignal }
+export type CcnbFormat = 2 | 3;
+export interface CcnbRequestOptions extends RequestOptions { ccnbFormat?: CcnbFormat }
+
+export function ccnbFormatHeader(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (value !== 2 && value !== 3) throw new ApiError('CCNB format must be 2 or 3.', { code: 'invalid_request' });
+  return String(value);
+}
 export interface HttpResponse {
   status: number;
   text: string;
@@ -72,6 +82,12 @@ export class Transport {
   private readonly timeoutMs: number;
   private readonly maxBytes: number;
   private readonly userAgent: string;
+  private readonly revalidate: ClientOptions['revalidate'];
+  private readonly representations = new Map<string, {
+    etag: string; response: Pick<HttpResponse, 'status' | 'bytes' | 'contentType' | 'contentDisposition'>;
+  }>();
+  private storedBytes = 0;
+  private generation = 0;
 
   constructor(options: ClientOptions = {}) {
     let base: URL;
@@ -86,6 +102,7 @@ export class Transport {
     this.timeoutMs = positiveInteger(options.timeoutMs ?? 30_000, 'timeoutMs');
     this.maxBytes = positiveInteger(options.maxResponseBytes ?? 32 * 1024 * 1024, 'maxResponseBytes');
     this.userAgent = options.userAgent ?? 'classicchess-npm-client/0.1.0';
+    this.revalidate = options.revalidate;
   }
 
   url(path: string, query: Query = {}): URL {
@@ -112,11 +129,34 @@ export class Transport {
     return url;
   }
 
-  async read<T>(url: URL, format: 'json' | 'text', options: RequestOptions = {}): Promise<T> {
+  async read<T>(url: URL, format: 'json' | 'text', options: RequestOptions = {}, ccnbFormat?: CcnbFormat): Promise<T> {
     this.apiUrl(url.href);
-    const response = await this.exchange(url, { method: 'GET', headers: {
-      Accept: format === 'json' ? 'application/json' : 'application/x-chess-pgn',
-    } }, options);
+    const header = ccnbFormatHeader(ccnbFormat);
+    if (header !== undefined && (url.pathname !== '/api/v1/annotated/books/' || url.search)) {
+      throw new ApiError('CCNB negotiation requires the fixed annotated catalog endpoint.', { code: 'invalid_request' });
+    }
+    const headers = new Headers({ Accept: format === 'json' ? 'application/json' : 'application/x-chess-pgn' });
+    if (header !== undefined) headers.set('CCNB-Format', header);
+    const response = await this.exchange(url, { method: 'GET', headers }, options);
+    this.requireSuccess(response);
+    if (format === 'text') return response.text as T;
+    return this.json<T>(response);
+  }
+
+  async ccnbDownload(bookSlug: string, options: CcnbRequestOptions = {}): Promise<Uint8Array> {
+    const url = new URL(`/annotated/${segment(bookSlug)}/download/`, this.baseUrl);
+    const header = ccnbFormatHeader(options.ccnbFormat);
+    const headers = new Headers({ Accept: 'application/vnd.classicchess.notebook' });
+    if (header !== undefined) headers.set('CCNB-Format', header);
+    const response = await this.exchange(url, { method: 'GET', headers }, options);
+    this.requireSuccess(response);
+    if (!response.contentType?.startsWith('application/vnd.classicchess.notebook')) {
+      throw new ApiError('Response was not a Notebook file.', { code: 'invalid_response' });
+    }
+    return response.bytes;
+  }
+
+  private requireSuccess(response: HttpResponse): void {
     if (response.status < 200 || response.status >= 300) {
       let detail: { error?: { message?: unknown; code?: unknown } } | null = null;
       try { detail = JSON.parse(response.text); } catch { /* Proxies can return HTML. */ }
@@ -125,8 +165,6 @@ export class Transport {
         status: response.status, retryAfter: response.retryAfter,
       });
     }
-    if (format === 'text') return response.text as T;
-    return this.json<T>(response);
   }
 
   json<T>(response: HttpResponse, allowEmpty = false): T {
@@ -151,16 +189,61 @@ export class Transport {
     try {
       const headers = new Headers(init.headers);
       headers.set('User-Agent', this.userAgent);
+      const method = (init.method ?? 'GET').toUpperCase();
+      if (method !== 'GET') {
+        this.representations.clear(); this.storedBytes = 0; this.generation++;
+      }
+      const generation = this.generation;
+      // All request headers partition representations, including credentials and CCNB format.
+      const key = method === 'GET' && init.body === undefined && this.revalidate?.(new URL(url.href))
+        && headers.get('Accept') === 'application/json' && !headers.has('If-None-Match')
+        && !/\bno-store\b/i.test(headers.get('Cache-Control') ?? '')
+        ? JSON.stringify([url.href, [...headers]]) : null;
+      const saved = key ? this.representations.get(key) : undefined;
+      if (saved) headers.set('If-None-Match', saved.etag);
       const response = await this.fetcher(url, {
         ...init, headers, redirect: 'error', credentials: 'omit', signal: controller.signal,
       });
       const bytes = await this.body(response);
-      return {
-        status: response.status, text: new TextDecoder().decode(bytes), bytes,
+      let decoded: string | undefined;
+      const reply: HttpResponse = {
+        status: response.status, bytes,
+        get text() { return decoded ??= new TextDecoder().decode(this.bytes); },
+        set text(value: string) { decoded = value; },
         retryAfter: response.headers.get('Retry-After'),
         contentType: response.headers.get('Content-Type'),
         contentDisposition: response.headers.get('Content-Disposition'),
       };
+      if (response.status === 304 && saved) {
+        const validator = response.headers.get('ETag');
+        if (validator && validator.replace(/^W\//, '') !== saved.etag.replace(/^W\//, '')) {
+          if (key) this.forget(key);
+          throw new ApiError('Conditional response used a different validator.', { code: 'invalid_response', status: 304 });
+        }
+        // Reparse bytes for every caller; neither mutable objects nor byte arrays escape the cache.
+        reply.status = saved.response.status;
+        reply.bytes = saved.response.bytes.slice();
+        reply.contentType = saved.response.contentType;
+        reply.contentDisposition = saved.response.contentDisposition;
+      }
+      if (key && generation === this.generation) {
+        this.forget(key);
+        const etag = response.headers.get('ETag') ?? (response.status === 304 ? saved?.etag : null);
+        if (reply.status === 200 && etag && etag.length <= 512 && reply.bytes.byteLength <= 16 * 1024 * 1024
+          && /(?:application\/json|\+json)(?:;|$)/i.test(reply.contentType ?? '')
+          && !/\bno-store\b/i.test(response.headers.get('Cache-Control') ?? '')
+          && !response.headers.get('Vary')?.split(',').some(field => field.trim() === '*')) {
+          while (this.representations.size >= 64 || this.storedBytes + reply.bytes.byteLength > 16 * 1024 * 1024) {
+            this.forget(this.representations.keys().next().value!);
+          }
+          this.representations.set(key, { etag, response: {
+            status: reply.status, bytes: reply.bytes.slice(), contentType: reply.contentType,
+            contentDisposition: reply.contentDisposition,
+          } });
+          this.storedBytes += reply.bytes.byteLength;
+        }
+      }
+      return reply;
     } catch (cause) {
       if (cause instanceof ApiError) throw cause;
       throw new ApiError(timedOut ? 'API request timed out.' : controller.signal.aborted ? 'API request aborted.' : 'API request failed.', {
@@ -170,6 +253,12 @@ export class Transport {
       clearTimeout(timer);
       options.signal?.removeEventListener('abort', abort);
     }
+  }
+
+  private forget(key: string): void {
+    const previous = this.representations.get(key);
+    if (previous) this.storedBytes -= previous.response.bytes.byteLength;
+    this.representations.delete(key);
   }
 
   private async body(response: Response): Promise<Uint8Array> {
