@@ -1125,6 +1125,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/account/puzzles/batch/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a bounded offline puzzle batch
+         * @description Up to 100 distinct puzzles from the rotation, or current misses with result=missed. Store account_id and generation with the batch. Each puzzle has its exact revision. Offline packs use the puzzle source facts without a remote source-game lookup. Downloads are limited to 30 per account per hour.
+         */
+        get: operations["getPuzzleBatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/account/puzzles/": {
         parameters: {
             query?: never;
@@ -1236,9 +1256,29 @@ export interface paths {
         put?: never;
         /**
          * Save how one play of a puzzle went
-         * @description A first-try solve stands until Reset puzzles, so the saved result can differ from the one sent.
+         * @description A first-try solve stands until Reset puzzles, so the saved result can differ from the one sent. For durable offline delivery send event_id, generation and revision together. Retrying an identical event returns duplicate without changing progress. A reset or changed puzzle rejects an unsent old attempt with 409.
          */
         post: operations["recordPuzzleResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/annotation-search/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search annotations in the account Notebook library
+         * @description Searches only owned and directly invited Notebooks, including nested variations, root comments, NAG symbols/names and diagram marks. Local-only chapters are excluded. Each request scans at most 16 chapters, 2 MB of PGN and 0.5 seconds of parser work; each chapter retains the 1 MB/10,000-node and 512-move path limits. Follow cursor even when hits is empty. Cursors expire after one hour and reject changed user or query parameters. A changed chapter being resumed returns search_changed/409; restart search. Hits carry content_version; reload and validate before using path. The chapter-ID ceiling excludes later appends, while content is read afresh. Unreadable/over-budget chapters leave complete=false, even on the last page. Private query text and scores are not logged or cached.
+         */
+        get: operations["searchNotebookAnnotations"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1621,7 +1661,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Import public archive player games into an account collection */
+        /**
+         * Import curated games into an account collection
+         * @description Legacy public_player_games imports a player archive. curated_games combines filters, excludes Master DB and user imports, and appends at most 1000 games per call. Repeat identical selection with next_after_game_id until has_more is false. matched counts the full selection; added, already_present and processed count this batch. Retrying a batch preserves existing notes and progress. dry_run makes no changes.
+         */
         post: operations["importCollectionGames"];
         delete?: never;
         options?: never;
@@ -2011,6 +2054,8 @@ export interface components {
         };
         MasterGamePage: {
             query: string;
+            /** @description True when player, side and result constraints are applied before pagination. */
+            filters_applied?: boolean;
             /** @description Lower bound unless count_is_exact is true. */
             count: number;
             page: number;
@@ -2031,7 +2076,7 @@ export interface components {
                 name: string;
                 search_name: string;
             }[];
-            /** @description Full player names for spelling help when the query resolves to one player; search_name preserves any year constraint and game results remain available. */
+            /** @description Full player names for spelling help when the query resolves to a player or matchup; matchups include both players, search_name preserves any year constraint, and game results remain available. */
             player_suggestions?: {
                 name: string;
                 search_name: string;
@@ -3372,6 +3417,14 @@ export interface components {
                 api_detail: string;
             }[];
             player_query: string;
+            /** @description The year range applied to count and results; active is false without one. */
+            year_filter: {
+                supported: boolean;
+                active: boolean;
+                since: number | null;
+                until: number | null;
+                message: string;
+            };
         };
         PlayerOpeningExplorerPending: {
             /** @constant */
@@ -3423,6 +3476,14 @@ export interface components {
                 name: string;
             } | null;
             sample_label: string;
+            /** @description The year range Lichess applied to count, moves and games; active is false without one. */
+            year_filter: {
+                supported: boolean;
+                active: boolean;
+                since: number | null;
+                until: number | null;
+                message: string;
+            };
         };
         AccountGame: {
             token: string;
@@ -3557,9 +3618,17 @@ export interface components {
             added: number;
             already_present: number;
             skipped: number;
+            /** @description Games processed in this curated_games batch. */
+            processed?: number;
+            has_more?: boolean;
+            /** @description For curated_games, pass this cursor while has_more is true. */
+            next_after_game_id?: number | null;
+            dry_run?: boolean;
         };
         AccountImportedGames: {
             query: string;
+            /** @description True when source constraints are applied before pagination. */
+            filters_applied?: boolean;
             /** @enum {string} */
             sort: "imported_desc" | "imported_asc" | "date_desc" | "date_asc" | "player" | "visibility";
             quota: {
@@ -3822,6 +3891,40 @@ export interface components {
                 urls: components["schemas"]["ResourceLinks"];
             }[];
         };
+        NotebookAnnotationSearchLinks: {
+            /** @description Authorized PGN download for personal tokens and device sessions. */
+            api_pgn: string;
+            /** @description Device-session chapter projection; personal tokens use api_pgn. */
+            api_chapter: string;
+            html: string;
+        };
+        NotebookAnnotationSearchHit: {
+            /** Format: uuid */
+            notebook_uuid: string;
+            notebook_title: string;
+            chapter_id: number;
+            /**
+             * Format: uuid
+             * @description The chapter sync_uuid, shared by device clients.
+             */
+            chapter_uuid: string;
+            title: string;
+            /** @description Child indexes from root []; nested variations are included. Verify content_version when opening. */
+            path: number[];
+            ply: number;
+            /** @description Plain text; never render as HTML. */
+            snippet: string;
+            /** @enum {string} */
+            kind: "comments" | "glyphs" | "diagrams";
+            content_version: number;
+            urls: components["schemas"]["NotebookAnnotationSearchLinks"];
+        };
+        NotebookAnnotationSearchResult: {
+            hits: components["schemas"]["NotebookAnnotationSearchHit"][];
+            cursor: string | null;
+            /** @description True only after exhaustive scanning. A page with no hits may have a cursor; false with null cursor means malformed or over-budget chapters were skipped. */
+            complete: boolean;
+        };
         GymBot: {
             key: string;
             name: string;
@@ -3868,6 +3971,10 @@ export interface components {
             /** @enum {string} */
             human_color: "white" | "black";
             plies: number;
+            /** @description The position after the last move: a finished game's final position. */
+            fen: string;
+            /** @description The last move in UCI, or empty before the first move. */
+            last_move: string;
             /** @description 1-0, 0-1, 1/2-1/2 or * while in play. */
             result: string;
             finished: boolean;
@@ -3930,6 +4037,10 @@ export interface components {
             aborted: boolean;
         };
         PuzzleSummary: {
+            /** @description Stable authenticated account identity for isolating downloaded puzzles. */
+            account_id?: string;
+            /** @description Reset version. An offline attempt must keep the version from when it began. */
+            generation?: number;
             /** @description Puzzles solved on the first try since the last reset; they left the rotation. */
             solved: number;
             /** @description Puzzles missed since the last reset; they stay in the rotation. */
@@ -3960,6 +4071,8 @@ export interface components {
         Puzzle: {
             /** @example p-000ccc1f */
             id: string;
+            /** @description Identity of these exact puzzle data, required when syncing a downloaded attempt. */
+            revision?: string;
             heading: string;
             /** @description What the solver must find, for example "Find the best move for White." */
             prompt: string;
@@ -4005,7 +4118,17 @@ export interface components {
                 html: string;
             };
         };
+        PuzzleBatch: {
+            account_id: string;
+            generation: number;
+            puzzles: components["schemas"]["Puzzle"][];
+        };
         PuzzleResultSaved: {
+            /** @enum {string} */
+            status?: "saved" | "duplicate";
+            /** Format: uuid */
+            event_id?: string;
+            generation?: number;
             id: string;
             /**
              * @description The saved result. A first-try solve stands until Reset puzzles, so replaying a solved puzzle never puts it back in the rotation.
@@ -4159,6 +4282,9 @@ export type AccountNotificationPreferences = components['schemas']['AccountNotif
 export type AccountNotebook = components['schemas']['AccountNotebook'];
 export type AccountNotebooks = components['schemas']['AccountNotebooks'];
 export type AccountNotebookDetail = components['schemas']['AccountNotebookDetail'];
+export type NotebookAnnotationSearchLinks = components['schemas']['NotebookAnnotationSearchLinks'];
+export type NotebookAnnotationSearchHit = components['schemas']['NotebookAnnotationSearchHit'];
+export type NotebookAnnotationSearchResult = components['schemas']['NotebookAnnotationSearchResult'];
 export type GymBot = components['schemas']['GymBot'];
 export type GymTimeControls = components['schemas']['GymTimeControls'];
 export type GymNewGame = components['schemas']['GymNewGame'];
@@ -4173,6 +4299,7 @@ export type PuzzleSummary = components['schemas']['PuzzleSummary'];
 export type PuzzleMove = components['schemas']['PuzzleMove'];
 export type PuzzleSolution = components['schemas']['PuzzleSolution'];
 export type Puzzle = components['schemas']['Puzzle'];
+export type PuzzleBatch = components['schemas']['PuzzleBatch'];
 export type PuzzleResultSaved = components['schemas']['PuzzleResultSaved'];
 export type PuzzleHistoryEntry = components['schemas']['PuzzleHistoryEntry'];
 export type PuzzleHistoryPage = components['schemas']['PuzzleHistoryPage'];
@@ -5467,6 +5594,10 @@ export interface operations {
                 /** @description The player's result; an unknown value means all. */
                 result?: "all" | "win" | "loss" | "draw";
                 page?: number;
+                /** @description Include only games from this year or later. Games with an unknown year are left out of any year range. */
+                since?: number;
+                /** @description Include only games from this year or earlier; not before since. */
+                until?: number;
             };
             header?: never;
             path?: never;
@@ -5492,7 +5623,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlayerOpeningExplorerPending"];
                 };
             };
-            /** @description player is too long, or page is not a positive integer. */
+            /** @description player is too long, page is not a positive integer, or since or until is not a year from 1400 to 9999 or since is later than until. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5601,6 +5732,10 @@ export interface operations {
                 color?: "both" | "white" | "black";
                 /** @description The player's result; any value other than all requires player. */
                 result?: "all" | "win" | "loss" | "draw";
+                /** @description Include only games from January of this year or later. */
+                since?: number;
+                /** @description Include only games from December of this year or earlier; not before since. */
+                until?: number;
             };
             header?: never;
             path?: never;
@@ -5617,7 +5752,7 @@ export interface operations {
                     "application/json": components["schemas"]["LichessOpeningExplorer"];
                 };
             };
-            /** @description The FEN, username, color or result is invalid, or a result filter was sent without player. */
+            /** @description The FEN, username, color, result or year range is invalid, or a result filter was sent without player. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5756,6 +5891,11 @@ export interface operations {
     searchMasterGames: {
         parameters: {
             query: {
+                /** @description Resolved MasterDB player identity. */
+                player?: string;
+                side?: "either" | "white" | "black";
+                /** @description Result from the named player's side. Side/result require player. */
+                result?: "any" | "win" | "draw" | "loss";
                 q: string;
                 page?: number;
                 page_size?: number;
@@ -5807,6 +5947,11 @@ export interface operations {
     exportMasterGames: {
         parameters: {
             query?: {
+                /** @description Resolved MasterDB player identity. */
+                player?: string;
+                side?: "either" | "white" | "black";
+                /** @description Result from the named player's side. Side/result require player. */
+                result?: "any" | "win" | "draw" | "loss";
                 q?: string;
                 /** @description pgn or ndjson (jsonl is an alias). Without it, an Accept header naming application/x-ndjson or application/jsonl selects ndjson. */
                 format?: "pgn" | "ndjson" | "jsonl";
@@ -5876,6 +6021,11 @@ export interface operations {
     exportMasterGamesByToken: {
         parameters: {
             query?: {
+                /** @description Resolved MasterDB player identity. */
+                player?: string;
+                side?: "either" | "white" | "black";
+                /** @description Result from the named player's side. Side/result require player. */
+                result?: "any" | "win" | "draw" | "loss";
                 q?: string;
                 /** @description pgn or ndjson (jsonl is an alias). Without it, an Accept header naming application/x-ndjson or application/jsonl selects ndjson. */
                 format?: "pgn" | "ndjson" | "jsonl";
@@ -7056,6 +7206,65 @@ export interface operations {
             };
         };
     };
+    getPuzzleBatch: {
+        parameters: {
+            query?: {
+                limit?: number;
+                result?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account, reset version and playable puzzles. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PuzzleBatch"];
+                };
+            };
+            /** @description invalid_limit or invalid_result_filter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the puzzles:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description rate_limited: too many downloads. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     getPuzzleSummary: {
         parameters: {
             query?: never;
@@ -7097,6 +7306,8 @@ export interface operations {
     getNextPuzzle: {
         parameters: {
             query?: {
+                /** @description Only current misses; omit for the full rotation. */
+                result?: string;
                 /** @description The puzzle just played, so another one comes next when the rotation has one. */
                 after?: string;
             };
@@ -7115,7 +7326,7 @@ export interface operations {
                     "application/json": components["schemas"]["Puzzle"];
                 };
             };
-            /** @description invalid_puzzle_id: after is not a puzzle id. */
+            /** @description invalid_puzzle_id or invalid_result_filter. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7142,7 +7353,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description rotation_empty: every puzzle is solved on the first try. Reset puzzles to play them again. */
+            /** @description review_empty: no current misses remain; or rotation_empty: every puzzle is solved on the first try. Reset puzzles to play them again. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7156,6 +7367,8 @@ export interface operations {
     listPuzzleHistory: {
         parameters: {
             query?: {
+                /** @description Only current incorrect results since Reset puzzles. */
+                result?: string;
                 page?: number;
                 page_size?: number;
             };
@@ -7174,7 +7387,7 @@ export interface operations {
                     "application/json": components["schemas"]["PuzzleHistoryPage"];
                 };
             };
-            /** @description invalid_pagination. */
+            /** @description invalid_pagination or invalid_result_filter. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7303,6 +7516,13 @@ export interface operations {
             content: {
                 "application/json": {
                     /**
+                     * Format: uuid
+                     * @description Unique attempt UUID. Send with generation and revision for retry-safe delivery.
+                     */
+                    event_id?: string;
+                    generation?: number;
+                    revision?: string;
+                    /**
                      * @description missed at the first wrong move or when the solution is shown; solved for a finish with no wrong move. Report each play once.
                      * @enum {string}
                      */
@@ -7320,7 +7540,7 @@ export interface operations {
                     "application/json": components["schemas"]["PuzzleResultSaved"];
                 };
             };
-            /** @description invalid_result or invalid_json. */
+            /** @description invalid_result, invalid_attempt or invalid_json. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7356,8 +7576,91 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
+            /** @description stale_generation, stale_puzzle or event_conflict: the attempt was not applied. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
             /** @description too_large: the body is over 1 KB. */
             413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    searchNotebookAnnotations: {
+        parameters: {
+            query?: {
+                /** @description Literal case-insensitive annotation text, NAG symbol, $N or name; empty lists the selected annotation kinds. */
+                q?: string;
+                kind?: "all" | "comments" | "glyphs" | "diagrams";
+                /** @description An owned or directly invited Notebook; absent searches that same account library. */
+                notebook_uuid?: string | null;
+                limit?: number;
+                /** @description Signed user/query-bound continuation; retain q, kind, notebook_uuid and limit. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching annotations and a bounded-scan continuation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotebookAnnotationSearchResult"];
+                };
+            };
+            /** @description Operation rejected; retain the error message and do not retry writes blindly. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the notebooks:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Operation rejected; retain the error message and do not retry writes blindly. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Operation rejected; retain the error message and do not retry writes blindly. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8004,7 +8307,10 @@ export interface operations {
     };
     listCollections: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Exact collection name, ignoring case. */
+                name?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -8018,6 +8324,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountCollections"];
+                };
+            };
+            /** @description Validation error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
             /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
@@ -8758,6 +9073,55 @@ export interface operations {
                     archive_player: string;
                     since?: number;
                     until?: number;
+                } | {
+                    /** @constant */
+                    source: "curated_games";
+                    collection_id: number;
+                    /** @description OR groups; criteria inside each nonempty group are AND. Multiple players/events within a list are OR. */
+                    filters: {
+                        /** @description Curated player slugs; either participant, including event games. */
+                        players?: string[];
+                        /** @description Curated event slugs. */
+                        events?: string[];
+                        since?: number;
+                        until?: number;
+                        /** @description Curated notable games across every player, or their complement. */
+                        notable?: boolean;
+                        q?: string;
+                        theme?: string;
+                        eco?: string;
+                        result?: string;
+                        annotation_q?: string;
+                        annotation_author?: string;
+                        annotation_book?: string;
+                    }[];
+                    /** @description Subtract games matching any exclusion group. */
+                    exclude?: {
+                        /** @description Curated player slugs; either participant, including event games. */
+                        players?: string[];
+                        /** @description Curated event slugs. */
+                        events?: string[];
+                        since?: number;
+                        until?: number;
+                        /** @description Curated notable games across every player, or their complement. */
+                        notable?: boolean;
+                        q?: string;
+                        theme?: string;
+                        eco?: string;
+                        result?: string;
+                        annotation_q?: string;
+                        annotation_author?: string;
+                        annotation_book?: string;
+                    }[];
+                    /** @default 1000 */
+                    batch_size?: number;
+                    /** @default 0 */
+                    after_game_id?: number;
+                    /**
+                     * @description Return counts and continuation without adding games.
+                     * @default false
+                     */
+                    dry_run?: boolean;
                 };
             };
         };
@@ -8791,6 +9155,15 @@ export interface operations {
             };
             /** @description Personal API token is missing the library:write scope. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Collection not found for this account. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9156,6 +9529,8 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
+                /** @description Filter all owned imports by the PGN Site header before pagination. */
+                source?: "lichess" | "chesscom" | "pgn";
                 /** @description Defaults to imported_desc, as does an unknown value. */
                 sort?: "imported_desc" | "imported_asc" | "date_desc" | "date_asc" | "player" | "visibility";
                 page?: number;
@@ -9216,7 +9591,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    source?: "pgn" | "lichess" | "chesscom";
+                    source?: "lichess" | "chesscom" | "pgn";
                     pgn?: string;
                     /** Format: uri */
                     remote_url?: string;
@@ -9235,7 +9610,7 @@ export interface operations {
                     "application/json": components["schemas"]["AccountImportedGame"];
                 };
             };
-            /** @description Invalid import, quota, provider URL, or request body. */
+            /** @description Invalid import, provider URL, or request body. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9262,7 +9637,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Remote-import capacity is exhausted; honor Retry-After. */
+            /** @description Import request rate or remote-import capacity is exhausted; honor Retry-After. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -9271,7 +9646,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Remote-import admission is temporarily unavailable; honor Retry-After. */
+            /** @description Import admission is temporarily unavailable; honor Retry-After. */
             503: {
                 headers: {
                     [name: string]: unknown;

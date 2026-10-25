@@ -410,6 +410,58 @@ application client. The versioned player-opening endpoint
 `archiveEvent` and `sort: 'event'` preserves curated round order and `event_round`.
 Cross-origin browser access is not enabled; browser apps should call their backend.
 
+## Collections and curated bulk additions
+
+Use `library:read` to find collections and `library:write` to
+create, delete or bulk-add. `accountCreateCollection(name, token)` already
+creates empty collections. `accountFindCollection(name, token)` returns
+`count`/`results` for exact names ignoring case (empty when absent). Use the
+returned ID. `accountDeleteCollection(id, token)` deletes the collection and its
+memberships, notes and progress, keeping the underlying games.
+
+`accountAddCuratedGames(input, token, requestOptions?)` adds one batch from the
+curated archive, never MasterDB or user imports. Exported `CuratedGameFilter`
+supports `players`, `events`, `since`, `until`, `notable`, `q`, `theme`, `eco`,
+`result`, `annotationQ`, `annotationAuthor`, and `annotationBook`. Criteria are
+AND within each group, OR between groups; `exclude` subtracts groups. Lists of
+player/event catalog slugs are OR; players match either participant, including
+event games. Resolve slugs with `ClassicChessClient.publicPlayers(...)` and
+`publicEvents(...)`. Years are inclusive, even with unknown months/days.
+`filters: [{ notable: true }]` selects every player's curated notable games.
+
+Save as `collections-example.mjs`, set `CLASSICCHESS_API_TOKEN` in your private
+environment and run `node collections-example.mjs` after installing the release:
+
+```javascript
+import { ApplicationClient } from 'classicchess-sdk';
+
+const api = new ApplicationClient();
+const token = process.env.CLASSICCHESS_API_TOKEN;
+if (!token) throw new Error('Set CLASSICCHESS_API_TOKEN');
+const created = await api.accountCreateCollection('Curated games from 1920', token);
+if (!created.ok) throw new Error(JSON.stringify(created.data));
+const selection = { collectionId: created.data.id, filters: [{ since: 1920, until: 1920 }] };
+const preview = await api.accountAddCuratedGames({ ...selection, dryRun: true }, token);
+if (!preview.ok) throw new Error(JSON.stringify(preview.data));
+console.log('Matched:', preview.data.matched);
+let afterGameId = 0;
+while (true) {
+  const response = await api.accountAddCuratedGames({ ...selection, afterGameId }, token);
+  if (!response.ok) throw new Error(JSON.stringify(response.data));
+  console.log('Added this batch:', response.data.added);
+  if (!response.data.has_more) break;
+  afterGameId = response.data.next_after_game_id;
+}
+```
+
+Keep selection/exclusions fixed across calls. `batchSize` is 1–1000 (default
+1000); `afterGameId` starts at 0. `matched` counts the full live selection;
+`added`, `already_present` and `processed` count this batch. Preview writes
+nothing; restart at 0 for the actual addition. Batch retries preserve existing
+entries, notes and progress. There is no automatic write retry or frozen catalog
+snapshot. Stop on errors and retain the last successful cursor for resuming.
+All helpers accept the usual request options, including `AbortSignal`.
+
 ## Build and test this repository
 
 These commands are for contributors working on the SDK itself. They are not
@@ -447,3 +499,20 @@ installed apps have no runtime dependencies.
 The private development monorepo also runs a Playwright journey for the Electron
 example renderer. The public package's `npm test` runs its transport, type and
 Electron IPC tests without a browser installation.
+
+## Notebook annotation search and offline puzzle attempts
+
+These helpers require the matching server release. Use
+`accountNotebookAnnotationSearch(token, {q: 'king', kind: 'comments', notebookUuid, limit: 50, cursor})`
+for owned and directly invited Notebook annotations. A hit contains authorized PGN URLs,
+a child-index path and content version. Follow non-null cursors even after empty pages;
+`complete: false` can report a partial scan.
+
+Use `accountPuzzleNext(token, undefined, {result: 'missed'})` and
+`accountPuzzleHistory(token, 1, 20, {result: 'missed'})` for current incorrect attempts.
+`accountPuzzleBatch(token, 25)` downloads 1–100 playable puzzles. Persist the account ID,
+reset generation and puzzle revisions in account-separated private storage. Persist each
+attempt before sending `accountPuzzleResult(id, result, token, {eventId, generation, revision})`.
+Retries keep the same UUID and original reset generation. Saved/duplicate responses acknowledge
+delivery; 409 stale_generation/stale_puzzle/event_conflict and 404 are terminal. The SDK provides
+transport; your app owns durable storage, retry/backoff and sign-out cleanup.

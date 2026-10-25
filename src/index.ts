@@ -19,12 +19,13 @@ export type {
   PublicBeginnerGames, PublicGameSummary, PublicDailyGame, PublicEventOfTheDay, EventOfTheDay,
   EventOfTheDayWinner, PublicTodaysPicks, PlayerOfTheDay, TodaysGame, OnThisDayPick, SiteSearchPreview, SiteSearchPage,
   SearchPlayer, SearchEvent, SearchGame, TablebaseProbe, TablebaseMove,
-  AccountGame, AccountCollectionItem, AccountStarredGame, AccountStarredGames, AccountStarredPlayer,
+  AccountGame, AccountCollectionItem, AccountCollections, AccountCollectionImport, AccountStarredGame, AccountStarredGames, AccountStarredPlayer,
   AccountStarredPlayers, AccountStarState, PublicImportedGame, AccountNotification, AccountNotificationPage,
   AccountNotificationChange, AccountNotificationTopic, AccountNotificationPreferences, AccountNotebook,
   AccountNotebooks, AccountNotebookDetail, GymBot, GymTimeControls, GymClock, GymGameSummary, GymGamePage,
   GymHome, GymGameState, GymDeleted, GymAborted, PuzzleSummary, PuzzleMove, PuzzleSolution, Puzzle,
-  PuzzleResultSaved, PuzzleHistoryEntry, PuzzleHistoryPage, PuzzleReset,
+  PuzzleResultSaved, PuzzleHistoryEntry, PuzzleHistoryPage, PuzzleReset, PuzzleBatch,
+  NotebookAnnotationSearchLinks, NotebookAnnotationSearchHit, NotebookAnnotationSearchResult,
 } from './schema.js';
 
 export interface PageOptions { page?: number; pageSize?: number }
@@ -347,5 +348,6 @@ export class ClassicChessClient {
 export { ApplicationClient } from './application.js';
 export type {
   ApplicationDownload, ApplicationRequest, ApplicationResponse, GifOrientation, GymNewGameOptions,
-  NotificationPreferenceChange, PuzzleResult,
+  NotificationPreferenceChange, PuzzleResult, PuzzleReadOptions, PuzzleAttemptOptions, NotebookAnnotationSearchOptions,
+  CuratedGameFilter, CuratedCollectionInput,
 } from './application.js';

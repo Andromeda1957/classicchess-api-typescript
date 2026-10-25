@@ -1,12 +1,36 @@
 import { ApiError, Transport, ccnbFormatHeader, segment, usernameSegment, type CcnbRequestOptions, type ClientOptions, type RequestOptions } from './transport.js';
 import type {
-  AccountCollectionItem, AccountNotebookDetail, AccountNotebooks, AccountNotificationChange,
+  AccountCollectionItem, AccountCollectionImport, AccountCollections, AccountNotebookDetail, AccountNotebooks, AccountNotificationChange,
   AccountNotificationPage, AccountNotificationPreferences, AccountStarState, AccountStarredGames,
   AccountStarredPlayers, GymAborted, GymDeleted, GymGamePage, GymGameState, GymHome,
-  Puzzle, PuzzleHistoryPage, PuzzleReset, PuzzleResultSaved, PuzzleSummary,
+  Puzzle, PuzzleBatch, PuzzleHistoryPage, PuzzleReset, PuzzleResultSaved, PuzzleSummary,
+  NotebookAnnotationSearchResult,
 } from './schema.js';
 
 type Json = Record<string, unknown>;
+
+/** Criteria are AND within a group; groups are OR. Catalog slugs match either participant or event membership. */
+export interface CuratedGameFilter {
+  players?: string[]; events?: string[]; since?: number; until?: number; notable?: boolean;
+  q?: string; theme?: string; eco?: string; result?: string;
+  annotationQ?: string; annotationAuthor?: string; annotationBook?: string;
+}
+export interface CuratedCollectionInput {
+  collectionId: number; filters: CuratedGameFilter[]; exclude?: CuratedGameFilter[];
+  batchSize?: number; afterGameId?: number; dryRun?: boolean;
+}
+
+function curatedFilter(group: CuratedGameFilter): Json {
+  const keys = ['players', 'events', 'since', 'until', 'notable', 'q', 'theme', 'eco', 'result',
+    'annotationQ', 'annotationAuthor', 'annotationBook'];
+  if (typeof group !== 'object' || group === null || Array.isArray(group) ||
+      Object.keys(group).some(key => !keys.includes(key))) {
+    throw new ApiError('Use supported CuratedGameFilter fields (camelCase annotation names).', { code: 'invalid_request' });
+  }
+  return { players: group.players, events: group.events, since: group.since, until: group.until,
+    notable: group.notable, q: group.q, theme: group.theme, eco: group.eco, result: group.result,
+    annotation_q: group.annotationQ, annotation_author: group.annotationAuthor, annotation_book: group.annotationBook };
+}
 
 function libraryPage(page: number, pageSize: number): string {
   if (!Number.isSafeInteger(page) || !Number.isSafeInteger(pageSize) || page < 1 || pageSize < 1 || pageSize > 100) {
@@ -59,6 +83,17 @@ function puzzleId(value: string): string {
 }
 
 export type PuzzleResult = 'solved' | 'missed';
+
+export interface PuzzleReadOptions extends RequestOptions { result?: 'missed' }
+export interface PuzzleAttemptOptions extends RequestOptions { eventId?: string; generation?: number; revision?: string }
+export interface NotebookAnnotationSearchOptions extends RequestOptions {
+  q?: string; kind?: 'all' | 'comments' | 'glyphs' | 'diagrams'; notebookUuid?: string; limit?: number; cursor?: string;
+}
+
+function puzzleFilter(result?: string): string {
+  if (result !== undefined && result !== 'missed') throw new ApiError('result must be missed or omitted.', {code: 'invalid_request'});
+  return result === 'missed' ? '&result=missed' : '';
+}
 
 const UCI_MOVE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
 
@@ -153,6 +188,41 @@ export class ApplicationClient {
   }
   accountCreateCollection(name: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
     return this.request({ ...options, path: '/api/v1/account/collections/', method: 'POST', body: JSON.stringify({ name }), token });
+  }
+  /** Exact name ignoring case. Returns count/results, empty when absent. */
+  accountFindCollection(name: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountCollections>> {
+    if (typeof name !== 'string' || !name.trim() || [...name.trim()].length > 120) {
+      throw new ApiError('Use a collection name of 1–120 characters.', { code: 'invalid_request' });
+    }
+    return this.request({ ...options, path: '/api/v1/account/collections/?' + new URLSearchParams({ name: name.trim() }), token });
+  }
+  /** Delete the collection, memberships, notes and progress; keep underlying games. */
+  accountDeleteCollection(collection: number, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Json>> {
+    return this.request({ ...options, path: `/api/v1/account/collections/${collectionId(collection)}/`, method: 'DELETE', token });
+  }
+  /** One curated-only batch. Keep selection unchanged; pass next_after_game_id while has_more is true.
+   * dryRun previews without writing. No automatic write retries; HTTP errors retain status and data.
+   */
+  accountAddCuratedGames(input: CuratedCollectionInput, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountCollectionImport>> {
+    const keys = ['collectionId', 'filters', 'exclude', 'batchSize', 'afterGameId', 'dryRun'];
+    if (typeof input !== 'object' || input === null || Array.isArray(input) ||
+        Object.keys(input).some(key => !keys.includes(key)) || !Array.isArray(input.filters) ||
+        input.filters.length < 1 || input.filters.length > 10 ||
+        (input.exclude !== undefined && (!Array.isArray(input.exclude) || input.exclude.length > 10))) {
+      throw new ApiError('Use supported bulk-add fields, 1–10 filter groups and at most 10 exclusions.', { code: 'invalid_request' });
+    }
+    const id = collectionId(input.collectionId);
+    const batchSize = input.batchSize === undefined ? 1000 : input.batchSize;
+    const after = input.afterGameId === undefined ? 0 : input.afterGameId;
+    const dryRun = input.dryRun === undefined ? false : input.dryRun;
+    if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 1000 || !Number.isInteger(after) ||
+        after < 0 || after > 2147483647 || typeof dryRun !== 'boolean') {
+      throw new ApiError('Use a batch size from 1 to 1000, a nonnegative game ID and boolean dryRun.', { code: 'invalid_request' });
+    }
+    return this.request({ ...options, path: '/api/v1/account/collections/import/', method: 'POST', token,
+      body: JSON.stringify({ source: 'curated_games', collection_id: id, filters: input.filters.map(curatedFilter),
+        exclude: (input.exclude ?? []).map(curatedFilter), batch_size: batchSize, after_game_id: after, dry_run: dryRun }) });
   }
   accountImportPublicPlayerGames(input: { archivePlayer: string; name?: string; collectionId?: number; since?: number; until?: number },
     token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
@@ -361,13 +431,18 @@ export class ApplicationClient {
   accountPuzzles(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<PuzzleSummary>> {
     return this.request({ ...options, path: '/api/v1/account/puzzles/', token });
   }
+  /** Download at most 100 playable puzzles with their account/reset identity. */
+  accountPuzzleBatch(token: string, limit = 25, options: PuzzleReadOptions = {}): Promise<ApplicationResponse<PuzzleBatch>> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new ApiError('Use a batch size from 1 to 100.', {code: 'invalid_request'});
+    return this.request({...options, path: `/api/v1/account/puzzles/batch/?limit=${limit}${puzzleFilter(options.result)}`, token});
+  }
   /**
    * A random puzzle from your rotation, another than `after` (the one just played) when there is
    * one. A 404 rotation_empty means every puzzle is solved; reset to play them again.
    */
-  accountPuzzleNext(token: string, after?: string, options: RequestOptions = {}): Promise<ApplicationResponse<Puzzle>> {
-    const query = after === undefined ? '' : `?after=${puzzleId(after)}`;
-    return this.request({ ...options, path: `/api/v1/account/puzzles/next/${query}`, token });
+  accountPuzzleNext(token: string, after?: string, options: PuzzleReadOptions = {}): Promise<ApplicationResponse<Puzzle>> {
+    const query = (after === undefined ? '' : `&after=${puzzleId(after)}`) + puzzleFilter(options.result);
+    return this.request({ ...options, path: `/api/v1/account/puzzles/next/${query ? '?' + query.slice(1) : ''}`, token });
   }
   accountPuzzle(id: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Puzzle>> {
     return this.request({ ...options, path: `/api/v1/account/puzzles/${puzzleId(id)}/`, token });
@@ -377,17 +452,39 @@ export class ApplicationClient {
    * clean finish. A first-try solve stands until reset, so the saved result can differ.
    */
   accountPuzzleResult(id: string, result: PuzzleResult, token: string,
-    options: RequestOptions = {}): Promise<ApplicationResponse<PuzzleResultSaved>> {
+    options: PuzzleAttemptOptions = {}): Promise<ApplicationResponse<PuzzleResultSaved>> {
     if (result !== 'solved' && result !== 'missed') {
       throw new ApiError('result must be solved or missed.', { code: 'invalid_request' });
     }
+    const {eventId, generation, revision} = options;
+    const body: Json = {result};
+    if ([eventId, generation, revision].some(value => value !== undefined)) {
+      if (typeof eventId !== 'string' || !NOTEBOOK_UUID.test(eventId) || !Number.isSafeInteger(generation) || generation! < 0
+          || typeof revision !== 'string' || !/^[0-9a-f]{64}$/.test(revision)) {
+        throw new ApiError('An offline attempt needs a UUID eventId, generation and puzzle revision.', {code: 'invalid_request'});
+      }
+      Object.assign(body, {event_id: eventId, generation, revision});
+    }
     return this.request({ ...options, path: `/api/v1/account/puzzles/${puzzleId(id)}/result/`, method: 'POST',
-      body: JSON.stringify({ result }), token });
+      body: JSON.stringify(body), token });
   }
   /** The puzzles you have played and how you did, most recent first. */
   accountPuzzleHistory(token: string, page = 1, pageSize = 20,
-    options: RequestOptions = {}): Promise<ApplicationResponse<PuzzleHistoryPage>> {
-    return this.request({ ...options, path: `/api/v1/account/puzzles/history/?${libraryPage(page, pageSize)}`, token });
+    options: PuzzleReadOptions = {}): Promise<ApplicationResponse<PuzzleHistoryPage>> {
+    return this.request({ ...options, path: `/api/v1/account/puzzles/history/?${libraryPage(page, pageSize)}${puzzleFilter(options.result)}`, token });
+  }
+  /** Search owned/directly invited Notebook annotations. Continue with cursor until null. */
+  accountNotebookAnnotationSearch(token: string, options: NotebookAnnotationSearchOptions = {}): Promise<ApplicationResponse<NotebookAnnotationSearchResult>> {
+    const {q = '', kind = 'all', notebookUuid: uuid, limit = 50, cursor} = options;
+    if (typeof q !== 'string' || q.length > 128 || !['all', 'comments', 'glyphs', 'diagrams'].includes(kind)
+        || !Number.isSafeInteger(limit) || limit < 1 || limit > 100
+        || cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 2048)) {
+      throw new ApiError('Use a bounded annotation query, kind and page size.', {code: 'invalid_query'});
+    }
+    const query = new URLSearchParams({q, kind, limit: String(limit)});
+    if (uuid !== undefined) query.set('notebook_uuid', notebookUuid(uuid));
+    if (cursor !== undefined) query.set('cursor', cursor);
+    return this.request({...options, path: '/api/v1/account/notebooks/annotation-search/?' + query, token});
   }
   /** Every puzzle goes back into your rotation. Your history stays. */
   accountPuzzleReset(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<PuzzleReset>> {

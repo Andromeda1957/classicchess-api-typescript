@@ -54,3 +54,16 @@ api.publicPlayers({ query: 'Tal' });
 const error = new ApiError('failure', { code: 'rate_limited', status: 429 });
 const status: number | undefined = error.status;
 void [names, lede, status, missingNullCheck];
+
+const app = new ApplicationClient();
+const collections = await app.accountFindCollection('1920', 'fixture');
+const ids: number[] = collections.data.results.map(collection => collection.id);
+const bulk = await app.accountAddCuratedGames({ collectionId: 12,
+  filters: [{ since: 1920, until: 1920 }, { notable: true, annotationAuthor: 'Réti' }],
+  exclude: [{ events: ['london-1922'] }], dryRun: true, afterGameId: 0 }, 'fixture');
+const cursor: number | null | undefined = bulk.data.next_after_game_id;
+// @ts-expect-error SDK batch controls use camelCase.
+app.accountAddCuratedGames({ collectionId: 12, filters: [{ notable: true }], batch_size: 100 }, 'fixture');
+// @ts-expect-error Notability is boolean, not text.
+app.accountAddCuratedGames({ collectionId: 12, filters: [{ notable: 'true' }] }, 'fixture');
+void [ids, cursor];
