@@ -1,6 +1,6 @@
 {
   "name": "classicchess-sdk",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Typed Classic Chess public archive client for Node.js and Electron",
   "license": "MIT",
   "homepage": "https://classicchess.com/api/",
@@ -41,15 +41,19 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "test": "npm run check:contract && npm run build && tsc -p tsconfig.test.json && node --test tests/*.test.mjs",
-    "codegen:install": "npm ci --prefix codegen --no-audit --no-fund --silent",
-    "generate:types": "npm run codegen:install && node codegen/generate.mjs",
-    "check:contract": "npm run codegen:install && node codegen/generate.mjs --check",
+    "build": "node scripts/build.ts",
+    "build:examples": "node scripts/build-examples.ts",
+    "check:examples": "node scripts/build-examples.ts --check",
+    "typecheck": "npm run codegen:install && tsc -p tsconfig.scripts.json && tsc -p codegen/tsconfig.json",
+    "test": "npm run check:contract && npm run build && npm run check:examples && tsc -p tsconfig.test.json && npm run typecheck && node --test tests/*.test.ts",
+    "generate:types": "npm run codegen:install && node codegen/generate.ts",
+    "check:contract": "npm run codegen:install && node codegen/generate.ts --check",
     "prepack": "npm run build",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "codegen:install": "npm ci --prefix codegen --workspaces=false --no-audit --no-fund --silent"
   },
   "devDependencies": {
+    "@types/node": "22.20.5",
     "esbuild": "0.28.2",
     "typescript": "7.0.2"
   }

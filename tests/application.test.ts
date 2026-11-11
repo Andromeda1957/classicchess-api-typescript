@@ -3,17 +3,17 @@ import { test } from 'node:test';
 import { ApplicationClient, ClassicChessClient } from '../dist/esm/index.js';
 
 test('event catalogs and curated game order are first-class SDK requests', async () => {
-  const calls = [];
+  const calls: URL[] = [];
   const payload = { query: '', series_cards: [{ name: 'Candidates', slug: 'candidates', year_from: null }] };
-  const client = new ClassicChessClient({ fetch: async (url) => { calls.push(new URL(url)); return Response.json(payload); } });
+  const client = new ClassicChessClient({ fetch: async (url) => { calls.push(new URL(url as URL)); return Response.json(payload); } });
   assert.deepEqual(await client.eventSeries(), payload);
-  assert.equal(calls.at(-1).pathname, '/api/v1/public/event-series/');
+  assert.equal(calls.at(-1)!.pathname, '/api/v1/public/event-series/');
   for (const series of ['candidates', 'matches', 'misc']) {
     await client.eventSeries(undefined, series);
-    assert.equal(calls.at(-1).searchParams.get('series'), series);
+    assert.equal(calls.at(-1)!.searchParams.get('series'), series);
   }
   await client.publicGames({ archiveEvent: 'london-1851', sort: 'event', page: 2 });
-  assert.equal(calls.at(-1).searchParams.get('sort'), 'event');
+  assert.equal(calls.at(-1)!.searchParams.get('sort'), 'event');
   assert.throws(() => client.eventSeries('London', 'misc'), { code: 'invalid_query' });
   assert.throws(() => client.eventSeries(undefined, '../private'), { code: 'invalid_query' });
   assert.throws(() => client.publicGames({ sort: 'event' }), { code: 'invalid_query' });
@@ -21,7 +21,7 @@ test('event catalogs and curated game order are first-class SDK requests', async
 });
 
 test('application JSON transport retains status, private errors, binary uploads and explicit credentials', async () => {
-  const calls = [];
+  const calls: Array<RequestInit & { url: unknown }> = [];
   const payload = { error: { code: 'conflict', message: 'Changed elsewhere.' }, version: 9 };
   const client = new ApplicationClient({ fetch: async (url, init) => {
     calls.push({ url, ...init });
@@ -32,14 +32,14 @@ test('application JSON transport retains status, private errors, binary uploads 
     const response = await client.request({ path, method: 'POST', body,
       contentType: 'application/vnd.classicchess.notebook', token: 'test-device', timeoutMs: 60_000 });
     assert.deepEqual(response, { ok: false, status: 409, data: payload, retryAfter: '30' });
-    const call = calls.at(-1);
+    const call = calls.at(-1)!;
     assert.deepEqual(call.body, body);
     assert.equal(new Headers(call.headers).get('Authorization'), 'Bearer test-device');
     assert.equal(call.redirect, 'error');
     assert.equal(call.credentials, 'omit');
   }
   await client.request({ path: '/api/v1/account/mobile/login/', method: 'POST', body: '{}' });
-  assert.equal(new Headers(calls.at(-1).headers).has('Authorization'), false);
+  assert.equal(new Headers(calls.at(-1)!.headers).has('Authorization'), false);
 });
 
 test('application credentials never reach public endpoints, alternate origins or ambiguous paths', async () => {
@@ -65,8 +65,8 @@ test('application response bounds, cancellation and empty responses share the SD
   const invalid = new ApplicationClient({ fetch: async () => new Response('<h1>Missing</h1>', { status: 404 }) });
   await assert.rejects(invalid.request({ path: '/api/v1/account/me/' }), { code: 'invalid_response', status: 404 });
   const aborted = new ApplicationClient({ fetch: async (_url, init) => {
-    assert.equal(init.signal.aborted, true);
-    throw init.signal.reason;
+    assert.equal(init!.signal!.aborted, true);
+    throw init!.signal!.reason;
   } });
   const controller = new AbortController(); controller.abort();
   await assert.rejects(aborted.request({ path: '/api/v1/mobile/home/', signal: controller.signal }), { code: 'aborted' });

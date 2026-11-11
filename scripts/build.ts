@@ -1,13 +1,14 @@
-import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resetBuildOutput } from './build-output.ts';
 
 const require = createRequire(import.meta.url);
 process.chdir(fileURLToPath(new URL('..', import.meta.url)));
-rmSync('dist', { recursive: true, force: true });
+resetBuildOutput(process.cwd());
 const tsc = join(dirname(require.resolve('typescript/package.json')), 'bin/tsc');
 const result = spawnSync(process.execPath, [tsc, '-p', 'tsconfig.json'], { stdio: 'inherit' });
 if (result.error) throw result.error;

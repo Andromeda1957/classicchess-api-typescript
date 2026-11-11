@@ -261,6 +261,12 @@ npm install electron classicchess-sdk
 npx electron main.cjs
 ```
 
+The example is written in TypeScript: `main.cts`, `preload.cts`, `bridge.cts`
+and `renderer.ts`. The `.cjs` and `.js` files beside them are compiled from it
+and committed, so Electron runs them without a build step. After changing the
+TypeScript, run `npm run build:examples` from the repository root; `npm test`
+fails while the compiled JavaScript is out of date.
+
 ## Application APIs and images
 
 `ApplicationClient` calls account, notebook, scanner, Desktop Remote and Cast
@@ -465,8 +471,9 @@ All helpers accept the usual request options, including `AbortSignal`.
 ## Build and test this repository
 
 These commands are for contributors working on the SDK itself. They are not
-required to use it in an application. Node.js 22 or newer is the only
-prerequisite.
+required to use it in an application. Node.js 22.18 or newer is the only
+prerequisite: the build scripts and tests are TypeScript that Node.js runs
+directly.
 
 ```sh
 git clone https://github.com/Andromeda1957/classicchess-api-typescript.git

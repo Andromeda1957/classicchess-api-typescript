@@ -1,16 +1,19 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { ClassicChessClient, ApiError } from '../dist/esm/index.js';
+import { ClassicChessClient, ApiError, type ClientOptions } from '../dist/esm/index.js';
 
-function fake(payloads, extra = {}) {
-  const calls = [];
+// Inputs cast `as never` are ones a JavaScript caller can pass despite the
+// TypeScript signatures; the SDK must still reject them at runtime.
+function fake(payloads: unknown[], extra: ClientOptions = {}) {
+  const calls: Array<RequestInit & { url: URL }> = [];
   const client = new ClassicChessClient({
     ...extra,
     fetch: async (url, options) => {
-      calls.push({ url: new URL(url), ...options });
+      calls.push({ url: new URL(url as URL), ...options });
       const payload = payloads.shift();
       assert.notEqual(payload, undefined, `Unexpected fetch: ${url}`);
       return payload instanceof Response ? payload : Response.json(payload);
@@ -20,7 +23,7 @@ function fake(payloads, extra = {}) {
 }
 
 test('annotated catalog and fixed package endpoint use matching CCNB formats', async () => {
-  for (const ccnbFormat of [undefined, 2, 3]) {
+  for (const ccnbFormat of [undefined, 2, 3] as const) {
     const bytes = new Uint8Array([67, 67, 78, 66, 0, 3, 255]);
     const { client, calls } = fake([{ results: [] }, new Response(bytes, { headers: { 'Content-Type': 'application/vnd.classicchess.notebook' } })]);
     await client.annotatedBooks({ ccnbFormat });
@@ -40,8 +43,8 @@ test('annotated catalog and fixed package endpoint use matching CCNB formats', a
 test('annotated packages reject invalid formats, URLs and traversal before I/O', async () => {
   const { client, calls } = fake([]);
   for (const ccnbFormat of [1, 4, '3', true, null, NaN]) {
-    await assert.rejects(async () => client.annotatedBooks({ ccnbFormat }), { code: 'invalid_request' });
-    await assert.rejects(async () => client.annotatedNotebookFile('my-system', { ccnbFormat }), { code: 'invalid_request' });
+    await assert.rejects(async () => client.annotatedBooks({ ccnbFormat } as never), { code: 'invalid_request' });
+    await assert.rejects(async () => client.annotatedNotebookFile('my-system', { ccnbFormat } as never), { code: 'invalid_request' });
   }
   for (const book of ['../my-system', 'https://elsewhere.test/book', 'book?format=3', 'book/download']) {
     await assert.rejects(async () => client.annotatedNotebookFile(book), { code: 'invalid_identifier' });
@@ -57,10 +60,10 @@ test('MasterDB search preserves approximate counts, limits and query paging', as
       message: null, hint: 'Refine your search', results: [{ token: 'g1-000000000000', opening: 'Sicilian Defense' }] };
     const { client, calls } = fake([payload]);
     assert.deepEqual(await client.masterGames({ query, page: 1, pageSize: 25 }), payload);
-    assert.equal(calls[0].url.pathname, '/api/v1/games/');
-    assert.deepEqual(Object.fromEntries(calls[0].url.searchParams), { page: '1', page_size: '25', q: query });
-    assert.equal(calls[0].credentials, 'omit');
-    assert.equal(calls[0].redirect, 'error');
+    assert.equal(calls[0]!.url.pathname, '/api/v1/games/');
+    assert.deepEqual(Object.fromEntries(calls[0]!.url.searchParams), { page: '1', page_size: '25', q: query });
+    assert.equal(calls[0]!.credentials, 'omit');
+    assert.equal(calls[0]!.redirect, 'error');
   }
 });
 
@@ -81,7 +84,7 @@ test('MasterDB detail and PGN use opaque MasterDB tokens', async () => {
 test('MasterDB query and pagination bounds reject invalid inputs without fetching', () => {
   const { client, calls } = fake([]);
   for (const query of ['', '   ', 'a'.repeat(121), {}, null]) {
-    assert.throws(() => client.masterGames({ query }), { code: 'invalid_query' });
+    assert.throws(() => client.masterGames({ query } as never), { code: 'invalid_query' });
   }
   for (const page of [0, -1, 1.5, NaN]) assert.throws(() => client.masterGames({ query: 'Tal', page }), { code: 'invalid_pagination' });
   assert.throws(() => client.masterGames({ query: 'Tal', pageSize: 101 }), { code: 'invalid_pagination' });
@@ -107,17 +110,17 @@ test('catalogs distinguish full objects from names without silently paginating',
     ['publicPlayerCards', 'playerNames', 'name', '/api/v1/public/players/cards/'],
     ['publicEvents', 'eventNames', 'name', '/api/v1/public/events/'],
     ['annotatedBooks', 'bookTitles', 'label', '/api/v1/annotated/books/'],
-  ]) {
+  ] as const) {
     const payload = { count: 3, results: ['Tal', 'Capablanca', 'Petrosian'].map((name, i) => ({ [field]: name, slug: String(i) })) };
     const { client, calls } = fake([payload, payload]);
     assert.deepEqual(await client[full](), payload);
     assert.deepEqual(await client[names](), ['Tal', 'Capablanca', 'Petrosian']);
     assert.equal(calls.length, 2);
-    assert.equal(calls[0].url.pathname, path);
-    assert.equal(calls[1].url.pathname, path);
-    assert.equal(new Headers(calls[0].headers).get('Accept'), 'application/json');
-    assert.equal(calls[0].credentials, 'omit');
-    assert.equal(calls[0].redirect, 'error');
+    assert.equal(calls[0]!.url.pathname, path);
+    assert.equal(calls[1]!.url.pathname, path);
+    assert.equal(new Headers(calls[0]!.headers).get('Accept'), 'application/json');
+    assert.equal(calls[0]!.credentials, 'omit');
+    assert.equal(calls[0]!.redirect, 'error');
   }
 });
 
@@ -140,8 +143,8 @@ test('queries encode user text and public filters using API parameter names', as
   const { client, calls } = fake([{}, {}]);
   await client.publicPlayers('Tal & Keres?');
   await client.publicGames({ query: 'B33 & wins', archivePlayer: 'Mikhail_Tal', archiveEvent: 'event', searchMode: 'openings', since: 1950, until: 1960, sort: 'desc', page: 2, pageSize: 3 });
-  assert.equal(calls[0].url.searchParams.get('q'), 'Tal & Keres?');
-  assert.deepEqual(Object.fromEntries(calls[1].url.searchParams), { page: '2', page_size: '3', q: 'B33 & wins', archive_player: 'Mikhail_Tal', archive_event: 'event', search_mode: 'openings', since: '1950', until: '1960', sort: 'desc' });
+  assert.equal(calls[0]!.url.searchParams.get('q'), 'Tal & Keres?');
+  assert.deepEqual(Object.fromEntries(calls[1]!.url.searchParams), { page: '2', page_size: '3', q: 'B33 & wins', archive_player: 'Mikhail_Tal', archive_event: 'event', search_mode: 'openings', since: '1950', until: '1960', sort: 'desc' });
 });
 
 test('canonical and legacy public tokens retrieve detail and raw PGN', async () => {
@@ -150,7 +153,7 @@ test('canonical and legacy public tokens retrieve detail and raw PGN', async () 
     const { client, calls } = fake([{ token }, new Response(pgn)]);
     assert.deepEqual(await client.publicGame(token), { token });
     assert.equal(await client.publicPgn(token), pgn);
-    assert.equal(calls[1].url.pathname, `/api/v1/public/games/${token}/pgn/`);
+    assert.equal(calls[1]!.url.pathname, `/api/v1/public/games/${token}/pgn/`);
   }
 });
 
@@ -161,17 +164,17 @@ test('annotated books expose page, detail and per-game or whole-book PGN', async
   assert.equal(await client.annotatedPgn('book', 'game'), 'game pgn');
   assert.equal(await client.annotatedPgn('book'), 'book pgn');
   assert.deepEqual(calls.map(call => call.url.pathname), ['/api/v1/annotated/books/book/games/', '/api/v1/annotated/books/book/games/game/', '/api/v1/annotated/books/book/games/game/pgn/', '/api/v1/annotated/books/book/pgn/']);
-  assert.equal(calls[0].url.searchParams.get('page_size'), '10');
+  assert.equal(calls[0]!.url.searchParams.get('page_size'), '10');
 });
 
 test('export validates batch size and preserves canonical and legacy tokens', async () => {
   const { client, calls } = fake([new Response('pgn')]);
   assert.equal(await client.exportPublicGames({ tokens: ['one', 'Tal/two'] }), 'pgn');
-  assert.equal(calls[0].url.searchParams.get('tokens'), 'one,Tal/two');
+  assert.equal(calls[0]!.url.searchParams.get('tokens'), 'one,Tal/two');
   for (const tokens of [[], Array(301).fill('game')]) assert.throws(() => client.exportPublicGames({ tokens }), { code: 'invalid_export' });
 });
 
-async function collect(iterator) { const rows = []; for await (const row of iterator) rows.push(row); return rows; }
+async function collect<T>(iterator: AsyncIterable<T>): Promise<T[]> { const rows: T[] = []; for await (const row of iterator) rows.push(row); return rows; }
 
 test('both iterators follow all three pages lazily and stop on null', async () => {
   for (const annotated of [false, true]) {
@@ -179,7 +182,7 @@ test('both iterators follow all three pages lazily and stop on null', async () =
     const { client, calls } = fake([1, 2, 3].map(page => ({ results: [{ token: String(page) }], next: page < 3 ? `${path}?page=${page + 1}&page_size=1` : null })));
     const iterator = annotated ? client.iterateAnnotatedGames('book', { pageSize: 1 }) : client.iteratePublicGames({ pageSize: 1 });
     assert.equal(calls.length, 0);
-    assert.deepEqual(await collect(iterator), [{ token: '1' }, { token: '2' }, { token: '3' }]);
+    assert.deepEqual(await collect<unknown>(iterator), [{ token: '1' }, { token: '2' }, { token: '3' }]);
     assert.equal(calls.length, 3);
   }
 });
@@ -200,7 +203,7 @@ test('iteration respects limits, early break, zero limit and maxPages', async ()
 test('pagination rejects foreign origins, other resources and cycles before fetching them', async () => {
   for (const next of ['https://other.example/api/v1/public/games/', '//other.example/api/v1/public/games/', '/api/v1/account/me/', '/api/v1/public/players/', '/api/v1/public/games/']) {
     const { client, calls } = fake([{ results: [1], next }]);
-    await assert.rejects(collect(client.iteratePublicGames()), error => ['unsafe_url', 'invalid_pagination'].includes(error.code));
+    await assert.rejects(collect(client.iteratePublicGames()), error => ['unsafe_url', 'invalid_pagination'].includes((error as ApiError).code));
     assert.equal(calls.length, 1);
   }
   for (const payload of [null, {}, { results: [], next: 3 }]) {
@@ -212,7 +215,7 @@ test('pagination rejects foreign origins, other resources and cycles before fetc
 test('pagination resolves query-relative links and reports malformed URLs as ApiError', async () => {
   const { client, calls } = fake([{ results: [1], next: '?page=2' }, { results: [2], next: null }]);
   assert.deepEqual(await collect(client.iteratePublicGames()), [1, 2]);
-  assert.equal(calls[1].url.pathname, '/api/v1/public/games/');
+  assert.equal(calls[1]!.url.pathname, '/api/v1/public/games/');
   const broken = fake([{ results: [], next: 'http://[' }]);
   await assert.rejects(collect(broken.client.iteratePublicGames()), error => error instanceof ApiError && error.code === 'unsafe_url');
 });
@@ -230,7 +233,7 @@ test('identifiers and base URLs reject path injection and embedded credentials',
   }
   for (const page of [0, -1, 1.5, NaN]) assert.throws(() => client.publicGames({ page }), { code: 'invalid_pagination' });
   assert.throws(() => client.publicGames({ pageSize: 101 }), { code: 'invalid_pagination' });
-  assert.throws(() => client.publicGames({ searchMode: 'events' }), { code: 'invalid_query' });
+  assert.throws(() => client.publicGames({ searchMode: 'events' } as never), { code: 'invalid_query' });
 });
 
 test('structured errors retain status, API code and Retry-After, including proxy failures', async () => {
@@ -274,7 +277,7 @@ test('real HTTP transport handles JSON, redirects, timeout, cancellation and bod
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   try {
-    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     const client = new ClassicChessClient({ baseUrl, timeoutMs: 5_000 });
     assert.deepEqual(await client.publicPlayers(), { results: [] });
     mode = 'redirect';
@@ -292,7 +295,7 @@ test('real HTTP transport handles JSON, redirects, timeout, cancellation and bod
 
 test('CommonJS exposes the same client and structured error API', () => {
   const require = createRequire(import.meta.url);
-  const cjs = require('../dist/cjs/index.js');
+  const cjs = require('../dist/cjs/index.js') as typeof import('../dist/cjs/index.js');
   assert.equal(new cjs.ClassicChessClient().baseUrl, new ClassicChessClient().baseUrl);
   assert.equal(new cjs.ApiError('failure', { code: 'test' }).code, 'test');
 });

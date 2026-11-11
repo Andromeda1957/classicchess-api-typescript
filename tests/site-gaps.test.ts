@@ -1,23 +1,27 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApplicationClient, ClassicChessClient } from '../dist/esm/index.js';
+import type { ApplicationDownload, ApplicationResponse } from '../dist/esm/index.js';
 
 const NOTEBOOK = '0f8fad5b-d9cb-469f-a165-70867728950e';
 const GIF = new Uint8Array([71, 73, 70, 56, 57, 97, 0, 255]);
 
+// Arguments cast `as never` are ones a JavaScript caller can pass despite the
+// TypeScript signatures; the SDK must still reject them before network I/O.
+
 test('CCNB notebook exports negotiate an explicit format on GET and password POST', async () => {
   const wire = recorder(() => new Response(GIF));
   const client = new ApplicationClient({ fetch: wire.fetch });
-  for (const ccnbFormat of [undefined, 2, 3]) {
+  for (const ccnbFormat of [undefined, 2, 3] as const) {
     for (const password of [undefined, 'test-only-password']) {
       assert.deepEqual((await client.accountNotebookFile(NOTEBOOK, 't', password, { ccnbFormat })).bytes, GIF);
-      const sent = wire.calls.at(-1), headers = new Headers(sent.headers);
+      const sent = wire.calls.at(-1)!, headers = new Headers(sent.headers);
       assert.equal(sent.url.pathname, `/api/v1/account/notebooks/${NOTEBOOK}/file/`);
       assert.equal(sent.url.search, '');
       assert.equal(headers.get('CCNB-Format'), ccnbFormat === undefined ? null : String(ccnbFormat));
       assert.equal(headers.get('Authorization'), 'Bearer t');
       assert.equal(sent.method, password === undefined ? 'GET' : 'POST');
-      if (password !== undefined) assert.deepEqual(JSON.parse(sent.body), { password });
+      if (password !== undefined) assert.deepEqual(JSON.parse(sent.body as string), { password });
     }
   }
 });
@@ -26,15 +30,15 @@ test('invalid CCNB formats and unrelated format-bearing requests fail before net
   let calls = 0;
   const client = new ApplicationClient({ fetch: async () => { calls++; return new Response(); } });
   for (const ccnbFormat of [1, 4, '3', true, null, NaN]) {
-    await assert.rejects(async () => client.accountNotebookFile(NOTEBOOK, 't', undefined, { ccnbFormat }), { code: 'invalid_request' });
+    await assert.rejects(async () => client.accountNotebookFile(NOTEBOOK, 't', undefined, { ccnbFormat } as never), { code: 'invalid_request' });
   }
   await assert.rejects(client.download({ path: '/api/v1/account/me/', token: 't', ccnbFormat: 3 }), { code: 'invalid_request' });
   assert.equal(calls, 0);
 });
 
-function recorder(reply) {
-  const calls = [];
-  const fetch = async (url, init) => { calls.push({ url: new URL(url), ...init }); return reply(); };
+function recorder(reply: () => Response) {
+  const calls: Array<RequestInit & { url: URL }> = [];
+  const fetch = async (url: string | URL | Request, init?: RequestInit) => { calls.push({ url: new URL(url as URL), ...init }); return reply(); };
   return { calls, fetch };
 }
 
@@ -42,7 +46,7 @@ test('GIF downloads send the bearer and return exact bytes and the filename', as
   const wire = recorder(() => new Response(GIF, { headers: {
     'Content-Type': 'image/gif', 'Content-Disposition': 'attachment; filename="game.gif"' } }));
   const client = new ApplicationClient({ fetch: wire.fetch });
-  const cases = [
+  const cases: Array<[() => Promise<ApplicationDownload>, string]> = [
     [() => client.masterGameGif('g1a2-0123456789ab', 't'), '/api/v1/games/g1a2-0123456789ab/gif/'],
     [() => client.publicGameGif('tal-vs-larsen', 't', 'black'), '/api/v1/public/games/tal-vs-larsen/gif/?orientation=black'],
     [() => client.annotatedGameGif('my-system', 'game-1', 't'), '/api/v1/annotated/books/my-system/games/game-1/gif/'],
@@ -51,7 +55,7 @@ test('GIF downloads send the bearer and return exact bytes and the filename', as
   ];
   for (const [call, path] of cases) {
     const result = await call();
-    const sent = wire.calls.at(-1);
+    const sent = wire.calls.at(-1)!;
     assert.equal(sent.url.pathname + sent.url.search, path);
     assert.equal(new Headers(sent.headers).get('Authorization'), 'Bearer t');
     assert.equal(new Headers(sent.headers).get('Accept'), 'image/gif');
@@ -73,10 +77,13 @@ test('a failed download returns the JSON error and Retry-After without bytes', a
   assert.deepEqual(result.error, error);
 });
 
+// The fake server answers every request with `{"ok": true}`, whatever the route's schema.
+type RequestCase = [() => Promise<ApplicationResponse<unknown>>, string, string, unknown];
+
 test('notification and notebook calls use exact methods, paths and bodies', async () => {
   const wire = recorder(() => Response.json({ ok: true }));
   const client = new ApplicationClient({ fetch: wire.fetch });
-  const cases = [
+  const cases: RequestCase[] = [
     [() => client.accountNotifications('t', 2, 20), 'GET', '/api/v1/account/notifications/?page=2' + String.fromCharCode(38) + 'page_size=20', undefined],
     [() => client.accountMarkNotificationRead(5, 't'), 'POST', '/api/v1/account/notifications/5/read/', undefined],
     [() => client.accountMarkAllNotificationsRead('t'), 'POST', '/api/v1/account/notifications/read-all/', undefined],
@@ -89,12 +96,12 @@ test('notification and notebook calls use exact methods, paths and bodies', asyn
     [() => client.accountNotebook(NOTEBOOK.toUpperCase(), 't'), 'GET', `/api/v1/account/notebooks/${NOTEBOOK}/`, undefined],
   ];
   for (const [call, method, path, body] of cases) {
-    assert.equal((await call()).data.ok, true);
-    const sent = wire.calls.at(-1);
+    assert.equal(((await call()).data as { ok: unknown }).ok, true);
+    const sent = wire.calls.at(-1)!;
     assert.equal(sent.method, method);
     assert.equal(sent.url.pathname + sent.url.search, path);
     assert.equal(new Headers(sent.headers).get('Authorization'), 'Bearer t');
-    assert.deepEqual(sent.body === undefined ? undefined : JSON.parse(sent.body), body);
+    assert.deepEqual(sent.body === undefined ? undefined : JSON.parse(sent.body as string), body);
   }
 });
 
@@ -103,16 +110,16 @@ test('notebook exports download chapter PGN and optionally encrypted files', asy
     'Content-Type': 'application/x-chess-pgn', 'Content-Disposition': 'attachment; filename="line.pgn"' } }));
   const client = new ApplicationClient({ fetch: wire.fetch });
   const chapter = await client.accountNotebookChapterPgn(NOTEBOOK, 9, 't');
-  assert.equal(wire.calls.at(-1).url.pathname, `/api/v1/account/notebooks/${NOTEBOOK}/chapters/9/pgn/`);
+  assert.equal(wire.calls.at(-1)!.url.pathname, `/api/v1/account/notebooks/${NOTEBOOK}/chapters/9/pgn/`);
   assert.equal(new TextDecoder().decode(chapter.bytes), '1. e4 *');
   assert.equal(chapter.filename, 'line.pgn');
   await client.accountNotebookFile(NOTEBOOK, 't');
-  assert.equal(wire.calls.at(-1).method, 'GET');
+  assert.equal(wire.calls.at(-1)!.method, 'GET');
   await client.accountNotebookFile(NOTEBOOK, 't', 'secret');
-  const sent = wire.calls.at(-1);
+  const sent = wire.calls.at(-1)!;
   assert.equal(sent.method, 'POST');
   assert.equal(sent.url.pathname, `/api/v1/account/notebooks/${NOTEBOOK}/file/`);
-  assert.deepEqual(JSON.parse(sent.body), { password: 'secret' });
+  assert.deepEqual(JSON.parse(sent.body as string), { password: 'secret' });
 });
 
 test('bearers reach only GIF routes among public paths, and unsafe arguments never send', async () => {
@@ -123,11 +130,11 @@ test('bearers reach only GIF routes among public paths, and unsafe arguments nev
     await assert.rejects(async () => client.download({ path, token: 't' }), { code: 'unsafe_credentials' });
   }
   const unsafe = [
-    () => client.publicGameGif('../me', 't'), () => client.publicGameGif('g1', 't', 'left'),
+    () => client.publicGameGif('../me', 't'), () => client.publicGameGif('g1', 't', 'left' as never),
     () => client.publicImportedGameGif('..', 'g1', 't'), () => client.publicImportedGameGif('a/b', 'g1', 't'),
-    () => client.accountMarkNotificationRead(0, 't'), () => client.accountDismissNotification('5', 't'),
+    () => client.accountMarkNotificationRead(0, 't'), () => client.accountDismissNotification('5' as never, 't'),
     () => client.accountUpdateNotificationPreferences({}, 't'),
-    () => client.accountUpdateNotificationPreferences({ topics: { new_games: 'no' } }, 't'),
+    () => client.accountUpdateNotificationPreferences({ topics: { new_games: 'no' as never } }, 't'),
     () => client.accountNotebook('not-a-uuid', 't'), () => client.accountNotebookChapterPgn(NOTEBOOK, 0, 't'),
     () => client.accountNotebookFile(NOTEBOOK, 't', ''),
   ];
@@ -139,10 +146,10 @@ test('public imported games are public reads by username and slug', async () => 
   const wire = recorder(() => Response.json({ token: 'g1', username: 'ann.lee+1' }));
   const client = new ClassicChessClient({ fetch: wire.fetch });
   assert.equal((await client.publicImportedGame('ann.lee+1', 'g1')).username, 'ann.lee+1');
-  assert.equal(wire.calls.at(-1).url.pathname, '/api/v1/public/imported-games/ann.lee+1/g1/');
-  assert.equal(new Headers(wire.calls.at(-1).headers).has('Authorization'), false);
+  assert.equal(wire.calls.at(-1)!.url.pathname, '/api/v1/public/imported-games/ann.lee+1/g1/');
+  assert.equal(new Headers(wire.calls.at(-1)!.headers).has('Authorization'), false);
   await client.publicImportedPgn('ann', 'g1');
-  assert.equal(wire.calls.at(-1).url.pathname, '/api/v1/public/imported-games/ann/g1/pgn/');
+  assert.equal(wire.calls.at(-1)!.url.pathname, '/api/v1/public/imported-games/ann/g1/pgn/');
   assert.throws(() => client.publicImportedGame('..', 'g1'), { code: 'invalid_identifier' });
   assert.throws(() => client.publicImportedPgn('ann', '../me'), { code: 'invalid_identifier' });
 });
@@ -152,7 +159,7 @@ test('Gym requests use exact methods, paths and bodies', async () => {
   const client = new ApplicationClient({ fetch: wire.fetch });
   const game = '/api/v1/account/gym/games/7/';
   const newGame = '/api/v1/account/gym/bots/morphy/games/';
-  const cases = [
+  const cases: RequestCase[] = [
     [() => client.accountGym('t'), 'GET', '/api/v1/account/gym/?page_size=20', undefined],
     [() => client.accountGymGames('t', 2, 10), 'GET', '/api/v1/account/gym/games/?page=2&page_size=10', undefined],
     [() => client.accountGymGames('t', 1, 20, 'others'), 'GET', '/api/v1/account/gym/games/?page=1&page_size=20&player=others', undefined],
@@ -170,12 +177,12 @@ test('Gym requests use exact methods, paths and bodies', async () => {
     [() => client.accountGymAbort(7, 't'), 'POST', `${game}abort/`, undefined],
   ];
   for (const [call, method, path, body] of cases) {
-    assert.equal((await call()).data.ok, true);
-    const sent = wire.calls.at(-1);
+    assert.equal(((await call()).data as { ok: unknown }).ok, true);
+    const sent = wire.calls.at(-1)!;
     assert.equal(sent.method, method);
     assert.equal(sent.url.pathname + sent.url.search, path);
     assert.equal(new Headers(sent.headers).get('Authorization'), 'Bearer t');
-    assert.deepEqual(sent.body === undefined || sent.body === null ? undefined : JSON.parse(sent.body), body);
+    assert.deepEqual(sent.body === undefined || sent.body === null ? undefined : JSON.parse(sent.body as string), body);
   }
 });
 
@@ -183,7 +190,7 @@ test('Puzzle requests use exact methods, paths and bodies', async () => {
   const wire = recorder(() => Response.json({ ok: true }));
   const client = new ApplicationClient({ fetch: wire.fetch });
   const base = '/api/v1/account/puzzles/';
-  const cases = [
+  const cases: RequestCase[] = [
     [() => client.accountPuzzles('t'), 'GET', base, undefined],
     [() => client.accountPuzzleNext('t'), 'GET', `${base}next/`, undefined],
     [() => client.accountPuzzleNext('t', 'p-000ccc1f'), 'GET', `${base}next/?after=p-000ccc1f`, undefined],
@@ -193,12 +200,12 @@ test('Puzzle requests use exact methods, paths and bodies', async () => {
     [() => client.accountPuzzleReset('t'), 'POST', `${base}reset/`, undefined],
   ];
   for (const [call, method, path, body] of cases) {
-    assert.equal((await call()).data.ok, true);
-    const sent = wire.calls.at(-1);
+    assert.equal(((await call()).data as { ok: unknown }).ok, true);
+    const sent = wire.calls.at(-1)!;
     assert.equal(sent.method, method);
     assert.equal(sent.url.pathname + sent.url.search, path);
     assert.equal(new Headers(sent.headers).get('Authorization'), 'Bearer t');
-    assert.deepEqual(sent.body === undefined || sent.body === null ? undefined : JSON.parse(sent.body), body);
+    assert.deepEqual(sent.body === undefined || sent.body === null ? undefined : JSON.parse(sent.body as string), body);
   }
 });
 
@@ -207,8 +214,8 @@ test('Puzzle helpers reject invalid arguments before sending', async () => {
   const client = new ApplicationClient({ fetch: async () => { calls++; return Response.json({}); } });
   const invalid = [
     () => client.accountPuzzle('../me', 't'), () => client.accountPuzzle('p-000CCC1F', 't'),
-    () => client.accountPuzzle(7, 't'), () => client.accountPuzzleNext('t', 'p-1'),
-    () => client.accountPuzzleResult('p-000ccc1f', 'skipped', 't'),
+    () => client.accountPuzzle(7 as never, 't'), () => client.accountPuzzleNext('t', 'p-1'),
+    () => client.accountPuzzleResult('p-000ccc1f', 'skipped' as never, 't'),
     () => client.accountPuzzleResult('p-000ccc1f/..', 'solved', 't'),
     () => client.accountPuzzleHistory('t', 0), () => client.accountPuzzleHistory('t', 1, 101),
   ];
@@ -220,31 +227,32 @@ test('Gym PGN downloads, and a busy engine keeps its Retry-After without an auto
   const pgn = recorder(() => new Response('1. e4 *', { headers: {
     'Content-Type': 'application/x-chess-pgn', 'Content-Disposition': 'attachment; filename="gym.pgn"' } }));
   const download = await new ApplicationClient({ fetch: pgn.fetch }).accountGymGamePgn(7, 't');
-  assert.equal(pgn.calls.at(-1).url.pathname, '/api/v1/account/gym/games/7/pgn/');
+  assert.equal(pgn.calls.at(-1)!.url.pathname, '/api/v1/account/gym/games/7/pgn/');
   assert.equal(new TextDecoder().decode(download.bytes), '1. e4 *');
   assert.equal(download.filename, 'gym.pgn');
   const busy = recorder(() => Response.json({ error: { code: 'capacity_exhausted', message: 'Busy.' } },
     { status: 429, headers: { 'Retry-After': '1' } }));
-  const reply = await new ApplicationClient({ fetch: busy.fetch }).accountGymBotMove(7, 1, 't');
+  // A 429 reply's data holds the error JSON rather than the move's game state.
+  const reply: ApplicationResponse<unknown> = await new ApplicationClient({ fetch: busy.fetch }).accountGymBotMove(7, 1, 't');
   assert.equal(busy.calls.length, 1);
   assert.equal(reply.status, 429);
   assert.equal(reply.retryAfter, '1');
-  assert.equal(reply.data.error.code, 'capacity_exhausted');
+  assert.equal((reply.data as { error: { code: string } }).error.code, 'capacity_exhausted');
 });
 
 test('Gym helpers reject invalid arguments before sending', async () => {
   let calls = 0;
   const client = new ApplicationClient({ fetch: async () => { calls++; return Response.json({}); } });
   const invalid = [
-    () => client.accountGym('t', 101), () => client.accountGymGames('t', 1, 20, 'everyone'),
+    () => client.accountGym('t', 101), () => client.accountGymGames('t', 1, 20, 'everyone' as never),
     () => client.accountGymGames('t', 0), () => client.accountGymNewGame('../me', 't'),
-    () => client.accountGymNewGame('morphy', 't', { color: 'green' }), () => client.accountGymNewGame('morphy', 't', { time: '' }),
+    () => client.accountGymNewGame('morphy', 't', { color: 'green' as never }), () => client.accountGymNewGame('morphy', 't', { time: '' }),
     () => client.accountGymNewGame('morphy', 't', { time: 'custom', minutes: 0, increment: 0 }),
     () => client.accountGymNewGame('morphy', 't', { time: 'custom', minutes: 1.5, increment: 0 }),
     () => client.accountGymNewGame('morphy', 't', { time: '3+0', minutes: 3 }),
-    () => client.accountGymGame(0, 't'), () => client.accountGymGame('7', 't'),
+    () => client.accountGymGame(0, 't'), () => client.accountGymGame('7' as never, 't'),
     () => client.accountGymMove(7, 'e2-e4', 0, 't'), () => client.accountGymMove(7, 'e2e4', -1, 't'),
-    () => client.accountGymBotMove(7, true, 't'), () => client.accountGymAbort(-3, 't'),
+    () => client.accountGymBotMove(7, true as never, 't'), () => client.accountGymAbort(-3, 't'),
   ];
   for (const call of invalid) await assert.rejects(async () => call());
   assert.equal(calls, 0);

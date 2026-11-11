@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { test, mock } from 'node:test';
 import { Transport } from '../dist/esm/transport.js';
+import type { ClientOptions } from '../dist/esm/transport.js';
 
 const url = new URL('https://classicchess.com/api/v1/desktop/notebooks/');
-const json = (body, headers = {}) => Response.json(body, { headers: { ETag: '"one"', 'Cache-Control': 'private, no-cache', ...headers } });
-const get = (headers = {}) => ({ method: 'GET', headers: { Accept: 'application/json', ...headers } });
-function setup(replies, extra = {}) {
-  const calls = [];
+const json = (body: unknown, headers: Record<string, string> = {}) => Response.json(body, { headers: { ETag: '"one"', 'Cache-Control': 'private, no-cache', ...headers } });
+const get = (headers: Record<string, string> = {}) => ({ method: 'GET', headers: { Accept: 'application/json', ...headers } });
+function setup(replies: Array<Response | Error>, extra: ClientOptions = {}) {
+  const calls: Array<{ url: string | URL | Request; init: RequestInit | undefined }> = [];
   const transport = new Transport({ revalidate: () => true, ...extra, fetch: async (url, init) => {
     calls.push({ url, init });
     const reply = replies.shift();
@@ -36,7 +37,7 @@ test('conditional JSON reads send a validator and return independent parsed bodi
   const first = await transport.exchange(url, get({ Authorization: 'Bearer first' }));
   first.bytes.fill(0); // A caller must not corrupt the stored representation.
   const repeat = await transport.exchange(url, get({ Authorization: 'Bearer first' }));
-  assert.equal(new Headers(calls[1].init.headers).get('If-None-Match'), '"one"');
+  assert.equal(new Headers(calls[1]!.init!.headers).get('If-None-Match'), '"one"');
   assert.equal(repeat.status, 200);
   assert.deepEqual(transport.json(repeat), { results: [1] });
 });
@@ -48,14 +49,14 @@ test('credentials, format and query parameters partition the cache', async () =>
   await transport.exchange(url, get({ Authorization: 'Bearer one', 'CCNB-Format': '3' }));
   await transport.exchange(new URL('?page=2', url), get({ Authorization: 'Bearer one' }));
   await transport.exchange(url, get({ Authorization: 'Bearer one' }));
-  assert.deepEqual(calls.map(c => new Headers(c.init.headers).get('If-None-Match')), [null, null, null, null, '"one"']);
+  assert.deepEqual(calls.map(c => new Headers(c.init!.headers).get('If-None-Match')), [null, null, null, null, '"one"']);
 });
 
 test('no-store, Vary star, absent validators and non-JSON replies are never retained', async () => {
-  for (const headers of [{ 'Cache-Control': 'private, no-store' }, { Vary: '*' }, { ETag: '' }, { 'Content-Type': 'application/octet-stream' }]) {
+  for (const headers of [{ 'Cache-Control': 'private, no-store' }, { Vary: '*' }, { ETag: '' }, { 'Content-Type': 'application/octet-stream' }] as Array<Record<string, string>>) {
     const { transport, calls } = setup([json({ x: 1 }, headers), json({ x: 2 })]);
     await transport.exchange(url, get()); await transport.exchange(url, get());
-    assert.equal(new Headers(calls[1].init.headers).get('If-None-Match'), null);
+    assert.equal(new Headers(calls[1]!.init!.headers).get('If-None-Match'), null);
   }
 });
 
@@ -65,16 +66,16 @@ test('writes and HTTP errors invalidate entries; network failures never serve st
   await assert.rejects(transport.exchange(url, get()), { code: 'network_error' });
   assert.equal((await transport.exchange(url, get())).status, 403);
   await transport.exchange(url, get());
-  assert.equal(new Headers(calls[3].init.headers).get('If-None-Match'), null);
+  assert.equal(new Headers(calls[3]!.init!.headers).get('If-None-Match'), null);
   await transport.exchange(url, { method: 'POST' });
   await transport.exchange(url, get());
-  assert.equal(new Headers(calls[5].init.headers).get('If-None-Match'), null);
+  assert.equal(new Headers(calls[5]!.init!.headers).get('If-None-Match'), null);
 });
 
 test('an in-flight read cannot repopulate the cache after a write', async () => {
-  let release;
-  const pending = new Promise(resolve => { release = resolve; });
-  const calls = [];
+  let release!: (reply: Response) => void;
+  const pending = new Promise<Response>(resolve => { release = resolve; });
+  const calls: Array<RequestInit | undefined> = [];
   const transport = new Transport({ revalidate: () => true, fetch: async (_url, init) => {
     calls.push(init);
     return calls.length === 1 ? pending : json({ version: calls.length });
@@ -83,15 +84,15 @@ test('an in-flight read cannot repopulate the cache after a write', async () => 
   await transport.exchange(url, { method: 'POST' });
   release(json({ version: 1 })); await old;
   await transport.exchange(url, get());
-  assert.equal(new Headers(calls[2].headers).get('If-None-Match'), null);
+  assert.equal(new Headers(calls[2]!.headers).get('If-None-Match'), null);
 });
 
 test('conditional storage is opt-in and bounded by entry count and byte size', async () => {
   const off = setup([json({ x: 1 }), json({ x: 1 })], { revalidate: undefined });
   await off.transport.exchange(url, get()); await off.transport.exchange(url, get());
-  assert.equal(new Headers(off.calls[1].init.headers).get('If-None-Match'), null);
+  assert.equal(new Headers(off.calls[1]!.init!.headers).get('If-None-Match'), null);
   const bounded = setup(Array.from({ length: 67 }, () => json({ value: 'x'.repeat(300_000) })));
   for (let i = 0; i < 65; i++) await bounded.transport.exchange(new URL('?page=' + i, url), get());
   await bounded.transport.exchange(new URL('?page=0', url), get());
-  assert.equal(new Headers(bounded.calls[65].init.headers).get('If-None-Match'), null);
+  assert.equal(new Headers(bounded.calls[65]!.init!.headers).get('If-None-Match'), null);
 });

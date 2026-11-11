@@ -54,9 +54,14 @@ export function segment(value: string): string {
   return value;
 }
 
-/** The username of the account that imported a game, from its page address; safe in a URL path. */
+/**
+ * The username of the account that imported a game, from its page address; one URL path segment.
+ * The server accepts up to 150 letters and numbers in any script plus _ . @ + - (Django's Unicode
+ * username rule), so names such as José or 棋手 are valid. Request URLs percent-encode the
+ * non-ASCII characters as UTF-8.
+ */
 export function usernameSegment(value: string): string {
-  if (typeof value !== 'string' || !/^[A-Za-z0-9@.+_-]{1,150}$/.test(value) || value === '.' || value === '..') {
+  if (typeof value !== 'string' || !/^[\p{L}\p{N}_.@+-]{1,150}$/u.test(value) || value === '.' || value === '..') {
     throw new ApiError('Use the exact username from the game page address.', { code: 'invalid_identifier' });
   }
   return value;
