@@ -126,7 +126,8 @@ export class Transport {
     const masterRead = /^\/api\/v1\/games\/(?:g[0-9a-z]+-[0-9a-f]{12}\/(?:pgn\/)?)?$/.test(url.pathname);
     const publicTool = ['/api/v1/players/', '/api/v1/stats/', '/api/v1/games/export/',
       '/api/v1/opening-explorer/', '/api/v1/opening-explorer/sources/', '/api/v1/opening-explorer/lichess/',
-      '/api/v1/tablebase/'].includes(url.pathname);
+      '/api/v1/opening-explorer/player/', '/api/v1/analysis/game-link/', '/api/v1/tablebase/'].includes(url.pathname)
+      || /^\/api\/v1\/opening-explorer\/lichess\/games\/[A-Za-z0-9]{8}\/$/.test(url.pathname);
     if (url.origin !== this.baseUrl || url.username || url.password || url.hash
       || !masterRead && !publicTool && !/^\/api\/v1\/(?:public\/|annotated\/)/.test(url.pathname) && url.pathname !== '/api/v1/') {
       throw new ApiError('Refused a link outside the configured public API.', { code: 'unsafe_url' });
@@ -148,8 +149,22 @@ export class Transport {
     return this.json<T>(response);
   }
 
-  async ccnbDownload(bookSlug: string, options: CcnbRequestOptions = {}): Promise<Uint8Array> {
-    const url = new URL(`/annotated/${segment(bookSlug)}/download/`, this.baseUrl);
+  /** A public POST: token exports send text/plain, the game-link loader JSON. */
+  async post<T>(url: URL, format: 'json' | 'text', body: string, contentType: string, options: RequestOptions = {}): Promise<T> {
+    this.apiUrl(url.href);
+    const headers = new Headers({
+      Accept: format === 'json' ? 'application/json' : 'application/x-chess-pgn', 'Content-Type': contentType,
+    });
+    const response = await this.exchange(url, { method: 'POST', headers, body }, options);
+    this.requireSuccess(response);
+    if (format === 'text') return response.text as T;
+    return this.json<T>(response);
+  }
+
+  /** A book's .ccnb package: `api` is the versioned operation, `website` the site's download link; both serve the same bytes. */
+  async ccnbDownload(bookSlug: string, options: CcnbRequestOptions = {}, route: 'website' | 'api' = 'website'): Promise<Uint8Array> {
+    const slug = segment(bookSlug);
+    const url = new URL(route === 'api' ? `/api/v1/annotated/books/${slug}/ccnb/` : `/annotated/${slug}/download/`, this.baseUrl);
     const header = ccnbFormatHeader(options.ccnbFormat);
     const headers = new Headers({ Accept: 'application/vnd.classicchess.notebook' });
     if (header !== undefined) headers.set('CCNB-Format', header);
@@ -163,10 +178,17 @@ export class Transport {
 
   private requireSuccess(response: HttpResponse): void {
     if (response.status < 200 || response.status >= 300) {
-      let detail: { error?: { message?: unknown; code?: unknown } } | null = null;
+      let detail: { error?: string | { message?: unknown; code?: unknown } | null } | null = null;
       try { detail = JSON.parse(response.text); } catch { /* Proxies can return HTML. */ }
-      throw new ApiError(typeof detail?.error?.message === 'string' ? detail.error.message : `HTTP ${response.status}`, {
-        code: typeof detail?.error?.code === 'string' ? detail.error.code : 'http_error',
+      const error = detail?.error;
+      // The opening explorers predate the error object: their error is the message itself.
+      if (typeof error === 'string') {
+        throw new ApiError(error || `HTTP ${response.status}`, {
+          code: 'http_error', status: response.status, retryAfter: response.retryAfter,
+        });
+      }
+      throw new ApiError(typeof error?.message === 'string' ? error.message : `HTTP ${response.status}`, {
+        code: typeof error?.code === 'string' ? error.code : 'http_error',
         status: response.status, retryAfter: response.retryAfter,
       });
     }

@@ -122,6 +122,90 @@ test('site page reads use versioned public routes without credentials', async ()
   assert.equal(calls.length, 13);
 });
 
+test('api-gaps public reads send exact paths and wire filter names without credentials', async () => {
+  const calls: Array<{ url: URL; input: RequestInit | undefined }> = [];
+  const api = new ClassicChessClient({ fetch: async (url, input) => {
+    calls.push({ url: new URL(url as URL), input });
+    return Response.json({ ok: true });
+  } });
+  await api.chessToday();
+  await api.chessTodayOnDate(2, 29);
+  await api.studyThemes();
+  await api.siteUpdates({ page: 2, pageSize: 5 });
+  await api.siteUpdate('2026-11-01-new-explorer');
+  await api.sharedGymGame('7.abc_DEF-1');
+  await api.siteSearch('tal', 'site', 2);
+  await api.playerExplorer({ player: 'Tal' });
+  await api.playerExplorer({ player: 'Tal', color: 'white', result: 'win', page: 2, since: 1960, until: 1970 });
+  await api.lichessExplorerGame('AbCd1234');
+  await api.explorer({ play: 'e2e4', since: 1950, until: 1960 });
+  await api.lichessExplorer({ player: 'DrNykterstein', since: 2015, until: 2020 });
+  await api.publicGames({ theme: 'sacrifice,attack', eco: 'B9', result: '1/2-1/2', annotationQ: 'novelty',
+    annotationAuthor: 'Tal', annotationBook: 'Life' });
+  await api.annotatedGames('my-system', { page: 2, query: 'zwischenzug', headerQuery: 'Tal', author: 'Nimzowitsch', sort: 'desc' });
+  assert.deepEqual(calls.map(c => c.url.pathname + c.url.search), [
+    '/api/v1/public/chess-today/', '/api/v1/public/chess-today/2/29/', '/api/v1/public/themes/',
+    '/api/v1/public/site-updates/?page=2&page_size=5', '/api/v1/public/site-updates/2026-11-01-new-explorer/',
+    '/api/v1/public/gym/games/7.abc_DEF-1/', '/api/v1/public/search/?q=tal&kind=site&page=2',
+    '/api/v1/opening-explorer/player/?player=Tal&color=both&result=all',
+    '/api/v1/opening-explorer/player/?player=Tal&color=white&result=win&page=2&since=1960&until=1970',
+    '/api/v1/opening-explorer/lichess/games/AbCd1234/', '/api/v1/opening-explorer/?play=e2e4&moves=12&since=1950&until=1960',
+    '/api/v1/opening-explorer/lichess/?player=DrNykterstein&color=both&result=all&since=2015&until=2020',
+    '/api/v1/public/games/?theme=sacrifice%2Cattack&eco=B9&result=1%2F2-1%2F2&annotation_q=novelty&annotation_author=Tal&annotation_book=Life',
+    '/api/v1/annotated/books/my-system/games/?page=2&q=zwischenzug&header_q=Tal&author=Nimzowitsch&sort=desc',
+  ]);
+  assert.ok(calls.every(c => !new Headers(c.input!.headers).has('Authorization')));
+});
+
+test('by-token exports and the game-link loader POST their bodies; the API book package negotiates CCNB', async () => {
+  const calls: Array<{ url: URL; input: RequestInit | undefined }> = [];
+  const api = new ClassicChessClient({ fetch: async (url, input) => {
+    const parsed = new URL(url as URL);
+    calls.push({ url: parsed, input });
+    if (parsed.pathname.endsWith('/ccnb/')) {
+      return new Response(new Uint8Array([1, 2]), { headers: { 'Content-Type': 'application/vnd.classicchess.notebook' } });
+    }
+    return parsed.pathname.includes('/export/') ? new Response('exported') : Response.json({ pgn: '1. e4 *', orientation: 'black' });
+  } });
+  assert.equal(await api.exportMasterGamesByToken(['g1a2-0123456789ab', 'gz-0123456789ab'], { format: 'ndjson' }), 'exported');
+  assert.equal(await api.exportPublicGamesByToken(['tal-vs-larsen', 'ann/g1'], { theme: 'sacrifice' }), 'exported');
+  assert.deepEqual(await api.resolveGameLink('https://lichess.org/abcdefgh/black'), { pgn: '1. e4 *', orientation: 'black' });
+  assert.deepEqual(await api.annotatedBookCcnb('my-system', { ccnbFormat: 3 }), new Uint8Array([1, 2]));
+  const sent = calls.map(c => [c.input!.method, c.url.pathname + c.url.search, c.input!.body,
+    new Headers(c.input!.headers).get('Content-Type')]);
+  assert.deepEqual(sent, [
+    ['POST', '/api/v1/games/export/?format=ndjson&pgnInJson=true', 'g1a2-0123456789ab\ngz-0123456789ab', 'text/plain; charset=utf-8'],
+    ['POST', '/api/v1/public/games/export/?theme=sacrifice&format=pgn', 'tal-vs-larsen\nann/g1', 'text/plain; charset=utf-8'],
+    ['POST', '/api/v1/analysis/game-link/', JSON.stringify({ url: 'https://lichess.org/abcdefgh/black' }), 'application/json; charset=utf-8'],
+    ['GET', '/api/v1/annotated/books/my-system/ccnb/', undefined, null],
+  ]);
+  assert.equal(new Headers(calls[3]!.input!.headers).get('CCNB-Format'), '3');
+  assert.ok(calls.every(c => !new Headers(c.input!.headers).has('Authorization')));
+});
+
+test('api-gaps public helpers reject invalid arguments before network I/O', async () => {
+  let calls = 0;
+  const api = new ClassicChessClient({ fetch: async () => { calls++; return Response.json({}); } });
+  const invalid = [
+    () => api.chessTodayOnDate(13, 1), () => api.chessTodayOnDate(2, 0), () => api.siteUpdate('../me'),
+    () => api.sharedGymGame('7.abc/../x'), () => api.sharedGymGame('abc'), () => api.siteSearch('tal', 'site', 0),
+    () => api.playerExplorer({ player: '' }), () => api.playerExplorer({ player: 'x'.repeat(81) }),
+    () => api.playerExplorer({ player: 'Tal', color: 'red' as never }), () => api.lichessExplorerGame('../me123'),
+    () => api.resolveGameLink(''), () => api.resolveGameLink('x'.repeat(501)), () => api.exportMasterGamesByToken([]),
+    () => api.exportMasterGamesByToken(new Array(301).fill('g1-0123456789ab')), () => api.exportMasterGamesByToken(['../me']),
+    () => api.exportPublicGamesByToken(['a/b/c']), () => api.publicGames({ result: '2-0' as never }),
+    () => api.annotatedGames('my-system', { sort: 'newest' as never }), () => api.annotatedBookCcnb('../x'),
+  ];
+  for (const call of invalid) await assert.rejects(async () => call());
+  assert.equal(calls, 0);
+});
+
+test('an explorer error string becomes the ApiError message', async () => {
+  const api = new ClassicChessClient({ fetch: async () => Response.json({ error: 'No player matches Nobody.' }, { status: 404 }) });
+  await assert.rejects(async () => api.playerExplorer({ player: 'Nobody' }),
+    { name: 'ApiError', message: 'No player matches Nobody.', status: 404, code: 'http_error' });
+});
+
 test('library helpers send exact methods, paths and bodies with explicit credentials', async () => {
   const calls: Array<{ method: string | undefined; path: string; body: RequestInit['body']; headers: RequestInit['headers'] }> = [];
   const api = new ApplicationClient({ fetch: async (url, input) => {

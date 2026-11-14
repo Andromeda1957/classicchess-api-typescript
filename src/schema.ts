@@ -121,7 +121,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read an approved player biography, structured sections, quotes and sources */
+        /**
+         * Read an approved player biography, structured sections, quotes and sources
+         * @description The same content as the player's HTML about page: the biography, its "From the archive" game picks (archive_picks) and the Books section (bibliography). The bibliography is published independently of biography approval.
+         */
         get: operations["getCuratedPlayerBiography"];
         put?: never;
         post?: never;
@@ -140,7 +143,7 @@ export interface paths {
         };
         /**
          * List a player's curated notable games, in editorial order
-         * @description Complete unpaginated list. Each entry has its one-based position, editorial title, annotation and a game summary with canonical detail and PGN URLs. The annotation explains the selection; it is not move-by-move commentary. An empty selection returns count 0 and results []. Only public games belonging to this player appear.
+         * @description Complete unpaginated list. Each entry has its one-based position, editorial title, annotation and a game summary with canonical detail and PGN URLs. The annotation explains the selection; it is not move-by-move commentary. An empty selection returns count 0 and results []. Only public games belonging to this player appear. A game with one clear event adds urls.api_event_about and urls.html_event_about, as the website list links its event.
          */
         get: operations["listCuratedNotableGames"];
         put?: never;
@@ -160,7 +163,7 @@ export interface paths {
         };
         /**
          * Browse event-series cards, select a series, or search events
-         * @description Complete catalog. Supply either q or series; omit both for series cards, including Matches and Misc.
+         * @description Complete catalog. Supply either q or series; omit both for series cards, including Matches and Misc. A series answer lists its events oldest first and adds the series page layout: event_order and its named sections. 503 when the series' sections or membership disagree with the archive.
          */
         get: operations["listEventSeries"];
         put?: never;
@@ -214,7 +217,7 @@ export interface paths {
         };
         /**
          * Read an event's about page, write-up, photographs, vitals and cross table
-         * @description The same facts as the event's HTML about page. bio is null when no write-up exists; auto_vitals are always computed from the archive. crosstable is null when the event has no computable table, and otherwise has kind match, tournament, team or incomplete. Image URLs are absolute.
+         * @description The same facts as the event's HTML about page. bio is null when no write-up exists; auto_vitals are always computed from the archive. A game collection takes its dates and location from its write-up only. crosstable is null when the event has no computable table, and otherwise has kind match, tournament, team or incomplete. archive_gap carries the page's "Incomplete record" notice and collection_note the note a game collection prints. Image URLs are absolute.
          */
         get: operations["getCuratedEventAbout"];
         put?: never;
@@ -271,7 +274,7 @@ export interface paths {
         };
         /**
          * Read the ordered beginner games guide
-         * @description Complete ordered curriculum. Each entry has a one-based step, its study focus, and a spoiler-free game summary.
+         * @description Complete ordered curriculum. Each entry has a one-based step, its study focus, and a spoiler-free game summary. starters lists the players the guide suggests studying first, with the reason it gives.
          */
         get: operations["getBeginnerGames"];
         put?: never;
@@ -350,10 +353,50 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search the curated archive like the site search box
-         * @description Without kind, returns the grouped preview the site search overlay shows: counts plus the first players, events and games. With kind, returns one 50-row page of that result kind. Queries may name one player, two players (a matchup), an event, or general game terms, optionally with a year.
+         * Search the curated archive or the site content like the site search box
+         * @description Without kind, returns the grouped preview the site search overlay shows: counts plus the first players, events and games. With kind games, events or players, returns one 50-row page of that result kind. Queries may name one player, two players (a matchup), an event, or general game terms, optionally with a year. With kind site, returns one 20-row page of the /search/?kind=site results: the site's own pages and their sections, player biographies, event histories and What's New posts, best match first, each with a quoted snippet and the matched words as character ranges. The preview covers the curated archive only, as the website's Archive search does; site content appears only with kind site.
          */
         get: operations["searchSite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/site-updates/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List What's New posts, newest first
+         * @description The posts the What's New page lists, with every field their pages show: the plain-text body paragraphs, the onward link, and the image with its alt text and, for a gallery photograph, its source, license and credit. A post dated after today stays hidden until that day, as on the site. Image URLs are absolute. The Atom feed at /updates/feed/ carries the newest 20.
+         */
+        get: operations["listSiteUpdates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/site-updates/{update_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one What's New post
+         * @description The posts the What's New page lists, with every field their pages show: the plain-text body paragraphs, the onward link, and the image with its alt text and, for a gallery photograph, its source, license and credit. A post dated after today stays hidden until that day, as on the site. Image URLs are absolute.
+         */
+        get: operations["getSiteUpdate"];
         put?: never;
         post?: never;
         delete?: never;
@@ -389,7 +432,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search player- and event-backed public archive games */
+        /**
+         * Search player- and event-backed public archive games
+         * @description A row whose game has one clear event adds urls.api_event_about and urls.html_event_about, as the website game lists link its event.
+         */
         get: operations["listPublicGames"];
         put?: never;
         post?: never;
@@ -424,7 +470,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Canonical public archive game detail */
+        /**
+         * Canonical public archive game detail
+         * @description The same record as the HTML game page: archive memberships with their site and API links, PGN, mainline, and primary_annotation, the book notes the page shows with their source credit and, when an annotated book publishes the game, its annotated-book links.
+         */
         get: operations["getPublicGame"];
         put?: never;
         post?: never;
@@ -480,7 +529,7 @@ export interface paths {
         };
         /**
          * Compatibility URL for a game in a player's archive
-         * @description Prefer the canonical game URL from urls.api_detail. This older URL remains supported for installed clients and validates player membership.
+         * @description Prefer the canonical game URL from urls.api_detail. This older URL remains supported for installed clients and validates player membership. It adds primary_annotation as the canonical detail does.
          */
         get: operations["getPlayerArchiveGame"];
         put?: never;
@@ -696,6 +745,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analysis/game-link/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load a Lichess or Chess.com game from its link
+         * @description The Analysis Board's game-link loader for API clients. Send a public Lichess or Chess.com game URL; the server fetches that one game from the provider and returns its PGN without creating an import or saving anything. Clients at one address share 12 requests per 15 minutes with the website, and provider fetches share the server-wide remote-import slots. No cookie or CSRF token is read.
+         */
+        post: operations["resolveGameLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stats/": {
         parameters: {
             query?: never;
@@ -814,7 +883,7 @@ export interface paths {
         };
         /**
          * List every annotated book, with source metadata and download links
-         * @description CCNB-Format: 3 selects representation-specific binary package revisions; no format choice defaults to legacy format 2 revisions. The catalog and downloadable package respond with CCNB-Format and Vary: CCNB-Format. Unsupported values return ccnb_format_unsupported. The ccnb_format=2 or 3 URL query is equivalent; header and query must agree. Use the same choice for package downloads.
+         * @description CCNB-Format: 3 selects representation-specific binary package revisions; no format choice defaults to legacy format 2 revisions. The catalog and downloadable package respond with CCNB-Format and Vary: CCNB-Format. Unsupported values return ccnb_format_unsupported. The ccnb_format=2 or 3 URL query is equivalent; header and query must agree. Use the same choice for package downloads: urls.ccnb on the website or urls.api_ccnb (downloadAnnotatedBook), both of which name the format the catalog was read with.
          */
         get: operations["listAnnotatedBooks"];
         put?: never;
@@ -832,7 +901,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List games in an annotated book */
+        /**
+         * List games in an annotated book
+         * @description q searches the published annotation notes and author the source label. header_q searches the game headers and sort orders by date, as the website's book list does; the answer echoes both.
+         */
         get: operations["listAnnotatedGames"];
         put?: never;
         post?: never;
@@ -851,6 +923,26 @@ export interface paths {
         };
         /** Export all games in an annotated book as PGN */
         get: operations["exportAnnotatedBook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/annotated/books/{book_slug}/ccnb/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download an annotated book as a .ccnb Notebook package
+         * @description The website's book download (urls.ccnb): every annotated game with its notes, the book's mapped source pages and its rights metadata, for Classic Chess Notebook clients. CCNB-Format: 3 selects the binary record container; the ccnb_format=2 or 3 query is equivalent and header and query must agree; no choice defaults to legacy format 2. Unsupported, repeated or conflicting values return ccnb_format_unsupported. Responses carry CCNB-Format, Vary: CCNB-Format and an ETag naming the format and package digest; the package is public for an hour, then revalidated.
+         */
+        get: operations["downloadAnnotatedBook"];
         put?: never;
         post?: never;
         delete?: never;
@@ -922,7 +1014,7 @@ export interface paths {
         };
         /**
          * The Gym's bots, time controls and the account's first page of games
-         * @description Every active account may play. Bot moves are computed on the server; the bot's weights never leave it. can_review_all is true only for the Gym's review accounts, which may also list and read other players' games (never change them).
+         * @description Every active account may play. Bot moves are computed on the server; the bot's weights never leave it. can_review_all is true only for the Gym's review accounts, which may also list and read other players' games (never change them). Each bot lists its weight versions as its card does: the version menu, each version's move-match and training figures, and the default a new game plays.
          */
         get: operations["getGym"];
         put?: never;
@@ -964,7 +1056,7 @@ export interface paths {
         put?: never;
         /**
          * Start a Gym game against a bot
-         * @description One account may start 30 games an hour, counted together with the website. When the human plays Black the response has bot_to_move true; ask for the bot's move next.
+         * @description One account may start 30 games an hour, counted together with the website. When the human plays Black the response has bot_to_move true; ask for the bot's move next. version chooses one of the bot's versions from getGym, as the website's version menu does; without it the game plays the bot's default_version. The game keeps that version to the end; bot_version in the response names it.
          */
         post: operations["startGymGame"];
         delete?: never;
@@ -1119,6 +1211,26 @@ export interface paths {
          * @description An aborted game is deleted. can_abort in the game state says whether abort is still possible.
          */
         post: operations["abortGymGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/gym/games/{token}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A Gym game by its signed share link
+         * @description Every Gym game is public to anyone who holds its link, from its start, and no setting makes it private. This answers with what the link shows a visitor: the game on the analysis board, its PGN, and the bot with the version it plays. The player's clocks, take-backs and abort are left out. A game still being played reads with its clock settled, so a game lost on time reads as over; ask again to follow it. The account's games carry the address in urls.api_share.
+         */
+        get: operations["getSharedGymGame"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1298,7 +1410,11 @@ export interface paths {
          */
         get: operations["listAccountNotebooks"];
         put?: never;
-        post?: never;
+        /**
+         * Create a Notebook, optionally from a game, FEN or PGN
+         * @description The account owns the new Notebook, which has one chapter, as when the website saves a game to a new Notebook. Each call creates a Notebook; a retry creates another.
+         */
+        post: operations["createAccountNotebook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1319,7 +1435,291 @@ export interface paths {
         get: operations["getAccountNotebook"];
         put?: never;
         post?: never;
+        /**
+         * Delete a Notebook
+         * @description Owner only. Deletes every folder, chapter, collaborator and share link with it. A retry after success returns 404.
+         */
+        delete: operations["deleteAccountNotebook"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a Notebook
+         * @description Owner or manager only, as on the website; every other setting keeps its value. Safe to retry.
+         */
+        patch: operations["renameAccountNotebook"];
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/settings/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A Notebook's settings, owner and collaborators
+         * @description Owner or manager only: what the website settings page shows.
+         */
+        get: operations["getAccountNotebookSettings"];
+        put?: never;
+        post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a Notebook's title, description, visibility or public exports
+         * @description Owner or manager only. Settings left out keep their current values, including one another client changed meanwhile. Safe to retry.
+         */
+        patch: operations["updateAccountNotebookSettings"];
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/collaborators/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite an account to a Notebook or change its role
+         * @description Owner or manager only; only the owner can grant manager or change a manager. Inviting an existing collaborator changes its role. Safe to retry. The settings read lists every collaborator.
+         */
+        post: operations["upsertAccountNotebookCollaborator"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/collaborators/{collaborator_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a collaborator from a Notebook
+         * @description Owner or manager only; only the owner can remove a manager. Removing a collaborator already gone returns 200 with deleted false. Safe to retry.
+         */
+        delete: operations["removeAccountNotebookCollaborator"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/membership/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Leave a Notebook shared with this account
+         * @description Removes only this account's own invitation, whatever its role. The owner cannot leave. Afterwards the Notebook is no longer in the library, so a retry returns 404.
+         */
+        delete: operations["leaveAccountNotebook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/share/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A Notebook's share link
+         * @description Owner or manager only. A share link opens a read-only view without signing in until it is revoked; keep its url private.
+         */
+        get: operations["getAccountNotebookShare"];
+        /**
+         * Create or reuse a Notebook share link
+         * @description Owner or manager only. A share link opens a read-only view without signing in until it is revoked; keep its url private. An active link is returned unchanged. Safe to retry.
+         */
+        put: operations["createAccountNotebookShare"];
+        post?: never;
+        /**
+         * Revoke a Notebook share link
+         * @description Owner or manager only. Chapter share links stay active. Revoking when no link is active is not an error. Safe to retry.
+         */
+        delete: operations["revokeAccountNotebookShare"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/sections/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a folder to a Notebook
+         * @description Owner, manager or editor. The folder goes last among its siblings. Each call adds a folder.
+         */
+        post: operations["createAccountNotebookSection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/sections/{section_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a Notebook folder with everything in it
+         * @description Owner, manager or editor, as on the website: deletes every nested folder and every chapter they hold. A retry after success returns 404.
+         */
+        delete: operations["deleteAccountNotebookSection"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a Notebook folder
+         * @description Owner, manager or editor. Safe to retry.
+         */
+        patch: operations["renameAccountNotebookSection"];
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/sections/{section_id}/move/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a Notebook folder
+         * @description Owner, manager or editor. Moves the folder, with its contents, under parent_id before before_section_id. A folder cannot move into itself or its own subfolder. Siblings are renumbered, so the response carries the whole tree.
+         */
+        post: operations["moveAccountNotebookSection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/chapters/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a chapter from a game, FEN or PGN
+         * @description Owner, manager or editor, as when the website saves a game to an existing Notebook. The chapter goes last. Each call adds a chapter.
+         */
+        post: operations["createAccountNotebookChapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/chapters/{chapter_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One Notebook chapter's PGN and content_version
+         * @description The same export rule as the chapter PGN download. Read the PGN and content_version together here before an edit that will be saved.
+         */
+        get: operations["getAccountNotebookChapter"];
+        /**
+         * Save a Notebook chapter's PGN
+         * @description Owner, manager or editor. Replaces the PGN only when content_version still matches, as the website Workbench saves; otherwise 409 chapter_conflict, and nothing changes. Reload the chapter, reapply the edit and save again. Retrying a save that succeeded also returns 409.
+         */
+        put: operations["saveAccountNotebookChapter"];
+        post?: never;
+        /**
+         * Delete a Notebook chapter
+         * @description Owner, manager or editor. A retry after success returns 404.
+         */
+        delete: operations["deleteAccountNotebookChapter"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a Notebook chapter
+         * @description Owner, manager or editor. A rename raises content_version, so a save based on the earlier version conflicts. Safe to retry.
+         */
+        patch: operations["renameAccountNotebookChapter"];
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/chapters/{chapter_id}/move/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a Notebook chapter
+         * @description Owner, manager or editor. Moves the chapter into section_id before before_chapter_id. Chapters are renumbered, so the response carries the whole tree.
+         */
+        post: operations["moveAccountNotebookChapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/notebooks/{notebook_uuid}/chapters/{chapter_id}/share/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A Notebook chapter's share link
+         * @description Owner or manager only. A share link opens a read-only view without signing in until it is revoked; keep its url private. A chapter link opens only that chapter.
+         */
+        get: operations["getAccountNotebookChapterShare"];
+        /**
+         * Create or reuse a Notebook chapter share link
+         * @description Owner or manager only. A share link opens a read-only view without signing in until it is revoked; keep its url private. An active link is returned unchanged. Safe to retry.
+         */
+        put: operations["createAccountNotebookChapterShare"];
+        post?: never;
+        /**
+         * Revoke a Notebook chapter share link
+         * @description Owner or manager only. The Notebook share link stays active. Revoking when no link is active is not an error. Safe to retry.
+         */
+        delete: operations["revokeAccountNotebookChapterShare"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1513,7 +1913,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Authenticated account summary */
+        /**
+         * Authenticated account summary
+         * @description Read-only. Also reports whether the account has a password, its two-step sign-in state, linked Google and Lichess accounts, entitlements, and the credential that made the request: its kind and name, and for a token its scopes and expiry. Token secrets, hashes and prefixes are never returned. Email, password, two-step sign-in and security keys change on the website, or in the app after a device confirmation.
+         */
         get: operations["getAccount"];
         put?: never;
         post?: never;
@@ -1521,6 +1924,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/preferences/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The website's board, engine, viewer, sound and speech preferences
+         * @description The values the website Settings page and board pickers use, with the choices they offer. Sound and speech are the website's own; the Android app keeps separate ones that this API never reads or changes.
+         */
+        get: operations["getPreferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change some website preferences
+         * @description Only the fields sent change. Every value is checked as the website checks it, and narration is checked against the account on every write. When any value is refused, nothing changes. Safe to retry.
+         */
+        patch: operations["updatePreferences"];
         trace?: never;
     };
     "/api/v1/account/collections/": {
@@ -1596,6 +2023,26 @@ export interface paths {
         head?: never;
         /** Edit an item note or studied state */
         patch: operations["updateCollectionItem"];
+        trace?: never;
+    };
+    "/api/v1/account/collections/{collection_id}/games/{game_slug}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a game from an owned collection by its slug
+         * @description Idempotent. Removing a game that is not in the collection returns changed false. A game already in the collection can be removed even after its importer made it private.
+         */
+        delete: operations["removeCollectionGameBySlug"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/account/plans/": {
@@ -1775,6 +2222,26 @@ export interface paths {
          * @description Idempotent. A game the caller already starred can be unstarred even after its importer made it private.
          */
         delete: operations["unstarGame"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/games/{game_slug}/library/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One game's place in the caller's library
+         * @description Whether the caller starred the game and which of the caller's collections hold it, as the website's star and collection controls show. Any public archive game, public imported game, or the caller's own import.
+         */
+        get: operations["getGameLibraryState"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2051,6 +2518,10 @@ export interface components {
         MasterGameDetail: components["schemas"]["MasterGame"] & {
             pgn: string;
             mainline: components["schemas"]["Mainline"];
+            /** @description Every MasterDB game between White and Black, from White's side; null when the names do not resolve to two players with a game together, or the record is unavailable. Absent from older servers. */
+            head_to_head?: components["schemas"]["HeadToHeadRecord"] | null;
+            /** @description Absent from older servers. */
+            archive_players?: components["schemas"]["MasterGameArchivePlayers"];
         };
         MasterGamePage: {
             query: string;
@@ -2081,11 +2552,59 @@ export interface components {
                 name: string;
                 search_name: string;
             }[];
+            /** @description null when q names several possible players (see player_choices). Absent from older servers. */
+            interpretation?: components["schemas"]["MasterSearchInterpretation"] | null;
+            /** @description The pair's record over every game in q's years, as the website's score card shows it; player, side and result filters do not apply. null unless interpretation.kind is head_to_head and the record is available. Absent from older servers. */
+            head_to_head?: components["schemas"]["HeadToHeadRecord"] | null;
         };
         /** @description One newline-delimited JSON export record. */
         MasterGameExport: components["schemas"]["MasterGame"] & {
             /** @description Omitted when pgnInJson is false. */
             pgn?: string;
+        };
+        /** @description Two players' games against each other, the score card the website shows beside them. */
+        HeadToHeadRecord: {
+            /** @description The resolved player whose wins and losses result counts. */
+            player: string;
+            /** @description The resolved opponent. */
+            opponent: string;
+            /** @description First year counted; null when every year counts. */
+            since: number | null;
+            /** @description Last year counted; null when every year counts. */
+            until: number | null;
+            /** @description total, wins, losses and draws from player's side. */
+            result: components["schemas"]["StatsRecord"];
+            /** @description api_games and html_games list the counted games; html_stats is the website's all-years statistics for the pair. */
+            urls: components["schemas"]["ResourceLinks"] & unknown;
+        };
+        /** @description How the server read q, the line the website shows above the results. */
+        MasterSearchInterpretation: {
+            /**
+             * @description player: one player's games; head_to_head: two players' games against each other; text: a match on players, events, sites and ECO codes.
+             * @enum {string}
+             */
+            kind: "player" | "head_to_head" | "text";
+            /** @description The resolved player; null for text. */
+            player: string | null;
+            /** @description The resolved opponent; head_to_head only. */
+            opponent: string | null;
+            /** @description The matched words; text only. */
+            text: string | null;
+            /** @description First year of q's year constraint; null without one. */
+            since: number | null;
+            /** @description Last year of q's year constraint; null without one. */
+            until: number | null;
+        };
+        /** @description A curated archive player whose exact name is on one side of the game. */
+        MasterGameArchivePlayer: components["schemas"]["PlayerIdentity"] & {
+            urls: components["schemas"]["ResourceLinks"] & unknown;
+        };
+        /** @description Each side's curated archive player, as the website links its name to a biography. */
+        MasterGameArchivePlayers: {
+            /** @description null unless White's name matches exactly one archive player. */
+            white: components["schemas"]["MasterGameArchivePlayer"] | null;
+            /** @description null unless Black's name matches exactly one archive player. */
+            black: components["schemas"]["MasterGameArchivePlayer"] | null;
         };
         /** @description Board-ready mainline moves parsed from a game's PGN. */
         Mainline: {
@@ -2409,6 +2928,42 @@ export interface components {
             source: "public";
             player: components["schemas"]["PlayerIdentity"];
             bio: components["schemas"]["Biography"];
+            /** @description The about page's "From the archive" game picks, in editorial order; empty without an approved biography. Absent from older servers. */
+            archive_picks?: {
+                /** @description Canonical game slug. */
+                slug: string;
+                /** @description Headline names, such as "Beliavsky – Psakhis". */
+                names: string;
+                /** @description The year, result or occasion shown under the names, in order. */
+                qualifier: {
+                    text: string;
+                    /** @description True for a game result such as 1–0, which the page shows as a result. */
+                    is_result: boolean;
+                }[];
+                /** @description The editor's caption; may be empty. */
+                sub: string;
+                /** @description Opening family from the archive record; may be empty. */
+                opening: string;
+                /** @description Move count from the archive record; null when unknown. */
+                moves: number | null;
+                urls: components["schemas"]["ResourceLinks"] & unknown;
+            }[];
+            /** @description The about page's Books section, published independently of biography approval; null while the bibliography is unavailable. Absent from older servers. */
+            bibliography?: {
+                /** @description Works the player wrote, co-wrote, edited or contributed to; translations and reprints share one entry. Empty when the sources document none. */
+                books: {
+                    id: string;
+                    title: string;
+                    /** @description Publication year as written; may be empty. */
+                    year: string;
+                    /** @description The player's part in the work. */
+                    credit: string;
+                    /** @description Bibliographic page; empty when evidence_url is the source. */
+                    url: string;
+                }[];
+                /** @description Bibliography source page; may be empty. */
+                evidence_url: string;
+            } | null;
         };
         GamePlayerPortraits: {
             /** @description Absolute URL of White's card portrait. */
@@ -2469,11 +3024,50 @@ export interface components {
                 /** @enum {string} */
                 kind: "player" | "event" | "daily";
                 label: string;
+                /** @description Player or event slug; absent for the Daily Game and from older servers. */
+                slug?: string;
                 /** @description Site page for the player, event or Daily Game. */
                 url: string;
+                /** @description API counterpart of url: the player's games (listPublicGames with archive_player), the event's about page (getCuratedEventAbout) or the Daily Game (getDailyGame). Absent from older servers. */
+                api_url?: string;
             }[];
             /** @description Detail answers only: card portraits of the archive players this game names. A side without a known portrait is omitted; an empty object means neither has one, so no player search is needed. */
             portraits?: components["schemas"]["GamePlayerPortraits"];
+            /** @description getPublicGame and getPlayerArchiveGame only: the book notes the game page shows, or null when the game has none. Absent from list rows, annotated-book answers and older servers. */
+            primary_annotation?: {
+                /** @description The book or source the notes come from. */
+                source_label: string;
+                /** @description Source page for the notes; may be empty. */
+                source_url: string;
+                /** @description License code of the notes. */
+                license: string;
+                license_name: string;
+                /** @description License deed; empty for public domain. */
+                license_url: string;
+                /** @description True when the license requires attribution; the page credits the notes as adapted. */
+                adapted: boolean;
+                is_public_domain: boolean;
+                /** @description Introduction before the move notes; may be empty. */
+                intro: string;
+                /** @description Move notes in game order. */
+                notes: {
+                    /** @description The move number the note follows. */
+                    move_no: number;
+                    /**
+                     * @description The side whose move the note follows.
+                     * @enum {string}
+                     */
+                    side: "w" | "b";
+                    san: string;
+                    text: string;
+                }[];
+                /** @description null when no published annotated book carries this game. */
+                book: {
+                    /** @description Book slug for the annotated-book operations, such as getAnnotatedGame. */
+                    slug: string;
+                    urls: components["schemas"]["ResourceLinks"] & unknown;
+                } | null;
+            } | null;
         };
         PublicGamePage: {
             /** @constant */
@@ -2547,6 +3141,18 @@ export interface components {
                     slug: string | null;
                     url: string;
                 };
+            }[];
+            /** @description series requests only: event slugs in the order the series page lists them, which for a curated series is its editorial order. events stays oldest first. Absent from older servers. */
+            event_order?: string[];
+            /** @description series requests only: the series page's named sections in page order; empty when the page has none, including Matches and Misc. Absent from older servers. */
+            sections?: {
+                slug: string;
+                name: string;
+                /** @description Year span as the page prints it; may be empty. */
+                years: string;
+                description: string;
+                /** @description Member events in the order the page lists them. */
+                event_slugs: string[];
             }[];
         };
         PublicEvents: {
@@ -2626,6 +3232,25 @@ export interface components {
                     text: string;
                 }[];
             };
+            /** @description Detail answers only: the game's scanned source pages, exactly as the website game page draws them; null when the book maps no pages for this game. Older servers omit it. */
+            source_pages?: {
+                /** @description The book's mapped-pages PDF, the same file as its urls.pdf. */
+                pdf_url: string;
+                /** @description The game's section of the book, one entry per PDF page in reading order. */
+                pages: {
+                    /** @description Page number in the PDF at pdf_url. */
+                    page: number;
+                    /** @description Page number printed in the original edition. */
+                    printed_page: number;
+                    /** @description This page's crops that hold the game, in reading order. */
+                    regions: {
+                        left: number;
+                        top: number;
+                        right: number;
+                        bottom: number;
+                    }[];
+                }[];
+            } | null;
         };
         AnnotatedGamePage: {
             /** @constant */
@@ -2651,6 +3276,13 @@ export interface components {
                     revision?: string;
                 } | null;
             };
+            /** @description The header search applied, empty when none. Older servers ignore header_q and omit this echo, so a client that sends header_q and gets no echo has unfiltered results. */
+            header_q?: string;
+            /**
+             * @description The order applied. Older servers ignore sort, answer in asc order and omit this echo.
+             * @enum {string}
+             */
+            sort?: "asc" | "desc";
             count: number;
             page: number;
             page_size: number;
@@ -2969,6 +3601,19 @@ export interface components {
                 } | null;
                 archived_games: number;
             } | null;
+            /** @description The page's "Incomplete record" notice; null when the archive is not known to be missing games. Absent from older servers. */
+            archive_gap?: {
+                /** @description Games the archive holds, each pairing counted once. */
+                archived: number;
+                /** @description Documented games played; null when no total is established. */
+                played: number | null;
+                /** @description played minus archived; null when played is null. */
+                missing: number | null;
+                /** @description Public note on the gap; may be empty. */
+                note: string;
+            } | null;
+            /** @description The note a game collection's page prints; empty for other events and for a collection without one. Absent from older servers. */
+            collection_note?: string;
         };
         GalleryPlayer: {
             name: string;
@@ -3154,6 +3799,17 @@ export interface components {
                     game: components["schemas"]["PublicGameSummary"];
                 }[];
             }[];
+            /** @description The guide's players to study first, in its order, each linking to their notable games. Absent from older servers. */
+            starters?: (components["schemas"]["PlayerIdentity"] & {
+                /** @description Why the guide suggests this player. */
+                reason: string;
+                /** @description Absent when the player has no portrait. */
+                portrait?: {
+                    image?: string;
+                    thumbnail?: string;
+                };
+                urls: components["schemas"]["ResourceLinks"] & unknown;
+            })[];
             urls: components["schemas"]["ResourceLinks"];
         };
         SearchCounts: {
@@ -3191,8 +3847,12 @@ export interface components {
                 /** @enum {string} */
                 kind: "player" | "event" | "daily";
                 label: string;
+                /** @description Player or event slug; absent for the Daily Game and from older servers. */
+                slug?: string;
                 /** @description Site page for the player, event or Daily Game. */
                 url: string;
+                /** @description API counterpart of url: the player's games (listPublicGames with archive_player), the event's about page (getCuratedEventAbout) or the Daily Game (getDailyGame). Absent from older servers. */
+                api_url?: string;
             }[];
             urls: components["schemas"]["ResourceLinks"];
         };
@@ -3230,6 +3890,104 @@ export interface components {
             /** @description SearchGame, SearchEvent or SearchPlayer rows for kind. */
             results: components["schemas"]["SearchGame"][] | components["schemas"]["SearchEvent"][] | components["schemas"]["SearchPlayer"][];
             html_urls: components["schemas"]["ResourceLinks"];
+        };
+        /** @description One match in the site's own content, as the /search/?kind=site page lists it. */
+        SiteSearchHit: {
+            /** @description page, player (a biography), event (an event history) or update (a What's New post). New kinds may be added. */
+            kind: string;
+            /** @description The group the site shows the match under, such as Pages. */
+            kind_label: string;
+            title: string;
+            title_highlights: number[][];
+            /** @description The matching section heading; empty for the page itself. */
+            heading: string;
+            heading_highlights: number[][];
+            /** @description A page's navigation group, a biography's life years, an event's dates and place, or a post's date. */
+            context: string;
+            /** @description Plain text quoted around the first matched word; empty when only the title matched. Escape it before inserting it into HTML. */
+            snippet: string;
+            snippet_highlights: number[][];
+            /** @description html is the page, with the section anchor. api_detail is present for a biography, event history or What's New post: the API resource that publishes the matched text. */
+            urls: components["schemas"]["ResourceLinks"];
+        };
+        /** @description One page of matches in the site's own pages, biographies, event histories and posts. */
+        SiteContentSearchPage: {
+            /** @constant */
+            source: "public";
+            /** @constant */
+            mode: "site";
+            query: string;
+            /** @constant */
+            kind: "site";
+            /** @description Matching pages; each counts once. */
+            count: number;
+            page: number;
+            page_size: number;
+            page_count: number;
+            has_next: boolean;
+            has_previous: boolean;
+            /** @description Best match first. A page appears once, at its best-matching section. */
+            results: components["schemas"]["SiteSearchHit"][];
+            html_urls: components["schemas"]["ResourceLinks"];
+        };
+        /** @description The image a post shows, with its alt text and, for a gallery photograph, its credit. */
+        SiteUpdatePhoto: {
+            /**
+             * @description gallery for a historical photograph from the gallery; brand for the Classic Chess knight, which illustrates feature and apps posts.
+             * @enum {string}
+             */
+            kind: "gallery" | "brand";
+            alt_text: string;
+            image: {
+                /** Format: uri */
+                url: string;
+                width: number;
+                height: number;
+            };
+            /** @description The photograph's gallery record with its source, license and credit. Honor attribution.required and usage_terms when reusing it. Null for the brand image, the site's own artwork, which carries no credit. */
+            gallery_photo: components["schemas"]["GalleryPhoto"] | null;
+        };
+        /** @description One published What's New post, with every field its page shows. */
+        SiteUpdatePost: {
+            /** @description Stable post ID and URL slug: the post date followed by a slug. */
+            id: string;
+            /**
+             * Format: date
+             * @description Publication date in the site timezone.
+             */
+            date: string;
+            /** @description feature, players, events, annotated, gallery or apps. */
+            category: string;
+            category_label: string;
+            title: string;
+            summary: string;
+            /** @description Plain-text paragraphs in order, as the post page shows them. They hold no HTML or markup; escape them before inserting them into HTML. */
+            body: string[];
+            link: {
+                /** @description Site path the post sends readers to, such as /gallery/. */
+                url: string;
+                label: string;
+            };
+            photo: components["schemas"]["SiteUpdatePhoto"];
+            urls: components["schemas"]["ResourceLinks"];
+        };
+        SiteUpdatePage: {
+            /** @constant */
+            source: "public";
+            count: number;
+            page: number;
+            page_size: number;
+            page_count: number;
+            has_next: boolean;
+            has_previous: boolean;
+            /** @description Newest first. */
+            results: components["schemas"]["SiteUpdatePost"][];
+            urls: components["schemas"]["ResourceLinks"];
+        };
+        SiteUpdateDetail: {
+            /** @constant */
+            source: "public";
+            post: components["schemas"]["SiteUpdatePost"];
         };
         TablebaseMove: {
             uci: string;
@@ -3485,6 +4243,16 @@ export interface components {
                 message: string;
             };
         };
+        /** @description A provider game for one transient analysis session; nothing is saved. */
+        ResolvedGameLink: {
+            /** @description The game as PGN, validated and size-bounded. */
+            pgn: string;
+            /**
+             * @description The side a Lichess /white or /black link asks to view from; otherwise null.
+             * @enum {string|null}
+             */
+            orientation: "white" | "black" | null;
+        };
         AccountGame: {
             token: string;
             white: string;
@@ -3559,6 +4327,184 @@ export interface components {
             username: string;
             email: string;
             email_verified: boolean;
+        };
+        /**
+         * @description The account summary with the security, linked-provider and entitlement state Settings shows.
+         *
+         *     Read-only: email, password, two-step sign-in and security keys change on the
+         *     website, or in the app after a device confirmation.
+         */
+        AccountProfile: components["schemas"]["AccountSummary"] & {
+            /** @description False for an account that signs in only with Google or Lichess. */
+            has_password: boolean;
+            two_factor: {
+                /** @description Whether sign-in asks for a second step: an authenticator app or a security key. */
+                enabled: boolean;
+                authenticator_enabled: boolean;
+                security_key_count: number;
+                /**
+                 * @description The second step sign-in asks for first; null while two-step sign-in is off.
+                 * @enum {string|null}
+                 */
+                preferred_method: "totp" | "security_key" | null;
+            };
+            providers: {
+                google: {
+                    connected: boolean;
+                    /** @description The linked Google address; null when not connected. */
+                    email: string | null;
+                };
+                lichess: {
+                    connected: boolean;
+                    /** @description The linked Lichess username; null when not connected. */
+                    username: string | null;
+                    /** @description Whether the Lichess Studies grant is active, so Lichess studies can be imported. */
+                    studies_authorized: boolean;
+                };
+            };
+            entitlements: {
+                /** @description Move narration in the game viewer. */
+                speech_synthesis: boolean;
+                patreon_index: boolean;
+                debug: boolean;
+            };
+            /** @description The credential that made this request. Its secret, hash and prefix are never returned. */
+            credential: {
+                /** @enum {string} */
+                kind: "personal_token" | "device_session" | "oauth_connection";
+                name: string;
+                /** @description The scopes a personal token or OAuth connection carries. */
+                scopes?: string[];
+                /** Format: date-time */
+                created_at: string;
+                /**
+                 * Format: date-time
+                 * @description null when the token never expires.
+                 */
+                expires_at: string | null;
+            };
+        };
+        AccountPreferences: {
+            disable_animations: boolean;
+            /** @description A key from catalogs.reading_fonts. */
+            reading_font: string;
+            /** @description A key from catalogs.board_themes. */
+            board_theme: string;
+            /** @description A key from catalogs.piece_sets. */
+            piece_set: string;
+            /** @description A key from catalogs.board_input_modes. */
+            board_input_mode: string;
+            /** @description Type moves into the board with the keyboard. */
+            keyboard_move_entry: boolean;
+            /** @description A key from catalogs.move_tree_themes. */
+            move_tree_theme: string;
+            /** @description Board drawing color without a modifier key. */
+            annotation_color_normal: string;
+            annotation_color_ctrl: string;
+            annotation_color_alt: string;
+            annotation_color_ctrl_alt: string;
+            autoplay_seconds: number;
+            /** @description A value from catalogs.engine_depths. */
+            engine_depth: number;
+            engine_lines: number;
+            engine_eval_bar: boolean;
+            engine_enabled: boolean;
+            /** @description A key from catalogs.sound_sets. */
+            sound_set: string;
+            sound_volume: number;
+            speech_enabled: boolean;
+            speech_level: number;
+            /** @description Empty for the browser default voice. */
+            speech_voice: string;
+            viewer_layouts: components["schemas"]["ViewerLayoutState"];
+            /** @description Every editable game-viewer command with its keys. */
+            viewer_keybindings: {
+                [key: string]: string[];
+            };
+        } & {
+            /** @description Whether move narration is available to this account. */
+            speech_available: boolean;
+            /** @description The choices the website's settings page and board pickers offer. */
+            catalogs: {
+                board_themes: ({
+                    key: string;
+                    label: string;
+                } & {
+                    /** @description Light-square CSS color. */
+                    light: string;
+                    /** @description Dark-square CSS color. */
+                    dark: string;
+                })[];
+                piece_sets: ({
+                    key: string;
+                    label: string;
+                } & {
+                    /** @description Static-file path of the set's white knight SVG. */
+                    preview: string;
+                })[];
+                sound_sets: {
+                    key: string;
+                    label: string;
+                }[];
+                reading_fonts: {
+                    key: string;
+                    label: string;
+                }[];
+                board_input_modes: {
+                    key: string;
+                    label: string;
+                }[];
+                move_tree_themes: {
+                    key: string;
+                    label: string;
+                }[];
+                engine_depths: number[];
+            };
+        };
+        /** @description The game viewer's saved layouts, as the website's layout editor stores them. */
+        ViewerLayoutState: {
+            /** @constant */
+            version: 1;
+            /** @description default, lichess or the id of a preset. */
+            active: string;
+            presets: {
+                id: string;
+                name: string;
+                canvas: {
+                    width: number;
+                    height: number;
+                };
+                /** @description board and moves; the board panel is 72 pixels taller than wide. */
+                panels: {
+                    [key: string]: {
+                        x: number;
+                        y: number;
+                        width: number;
+                        height: number;
+                        /** @description Stacking order, 1 at the bottom. */
+                        z: number;
+                    };
+                };
+            }[];
+        };
+        AccountGameLibraryState: {
+            slug: string;
+            starred: boolean;
+            /** @description Your collections that hold this game, by name. */
+            collections: {
+                /** @description Collection ID. */
+                id: number;
+                name: string;
+                collection_item_id: number;
+                urls: components["schemas"]["ResourceLinks"];
+            }[];
+        };
+        AccountCollectionGameRemoved: {
+            collection_id: number;
+            slug: string;
+            /** @description False when the game was not in the collection. */
+            changed: boolean;
+            message: string;
         };
         AccountMessage: {
             message: string;
@@ -3866,6 +4812,10 @@ export interface components {
             /** @description owner or the collaborator role for members; null for a Notebook opened only through its visibility. */
             role: string | null;
             can_export: boolean;
+            /** @description Owner, manager or editor: may change folders, chapters and chapter content. */
+            can_edit: boolean;
+            /** @description Owner or manager: may rename the Notebook and change settings, collaborators and share links. */
+            can_manage: boolean;
             chapter_count: number;
             updated_at: string;
             urls: components["schemas"]["ResourceLinks"];
@@ -3876,20 +4826,64 @@ export interface components {
         };
         AccountNotebookDetail: {
             notebook: components["schemas"]["AccountNotebook"];
-            sections: {
-                id: number;
-                parent_id: number | null;
-                title: string;
-                sort_order: number;
-            }[];
-            chapters: {
-                id: number;
-                title: string;
-                section_id: number | null;
-                sort_order: number;
-                updated_at: string;
-                urls: components["schemas"]["ResourceLinks"];
-            }[];
+            sections: components["schemas"]["AccountNotebookDetailSectionsItem"][];
+            chapters: components["schemas"]["AccountNotebookDetailChaptersItem"][];
+        };
+        AccountNotebookDetailSectionsItem: {
+            id: number;
+            parent_id: number | null;
+            title: string;
+            sort_order: number;
+        };
+        AccountNotebookDetailChaptersItem: {
+            id: number;
+            title: string;
+            section_id: number | null;
+            sort_order: number;
+            /** @description Send it back with a chapter save. Every content save and rename raises it. */
+            content_version: number;
+            updated_at: string;
+            urls: components["schemas"]["ResourceLinks"];
+        };
+        AccountNotebookChapterDetail: {
+            chapter: components["schemas"]["AccountNotebookDetailChaptersItem"];
+            /** @description The chapter PGN at chapter.content_version. */
+            pgn: string;
+        };
+        AccountNotebookDeleted: {
+            /** @description False only when the removed item was already gone. */
+            deleted: boolean;
+        };
+        AccountNotebookSectionDeletion: {
+            deleted: boolean;
+            /** @description The folder and every folder nested in it. */
+            section_ids: number[];
+            /** @description Every chapter those folders held. */
+            chapter_ids: number[];
+        };
+        AccountNotebookCollaborator: {
+            id: number;
+            username: string;
+            /** @description viewer, commenter, editor or manager. */
+            role: string;
+            can_present_live: boolean;
+        };
+        AccountNotebookSettings: {
+            notebook: components["schemas"]["AccountNotebook"];
+            owner_username: string;
+            is_owner: boolean;
+            collaborators: components["schemas"]["AccountNotebookCollaborator"][];
+            choices: {
+                visibility: string[];
+                roles: string[];
+            };
+        };
+        AccountNotebookShare: {
+            active: boolean;
+            /** @description notebook or chapter while a link is active. */
+            scope: string | null;
+            /** @description Read-only link that anyone holding it can open until it is revoked; keep it private. */
+            url: string | null;
         };
         NotebookAnnotationSearchLinks: {
             /** @description Authorized PGN download for personal tokens and device sessions. */
@@ -3925,10 +4919,40 @@ export interface components {
             /** @description True only after exhaustive scanning. A page with no hits may have a cursor; false with null cursor means malformed or over-budget chapters were skipped. */
             complete: boolean;
         };
+        /** @description One set of a bot's trained weights, as the bot's card and info dialog describe it. */
+        GymBotVersion: {
+            /**
+             * @description Send as version when starting a game.
+             * @example v5
+             */
+            key: string;
+            /** @description The short name in the version menu, for example v5. */
+            label: string;
+            /** @description A few words after the label in the version menu. */
+            title: string;
+            /** @description What the version trained on, from the bot's info dialog. */
+            summary: string;
+            /** @description Share of the master's own moves the bot plays in held-out games, from 0 to 1. The card shows it as a whole percent followed by the bot's match_unit. */
+            move_match: number;
+            /** @description Masters whose games the version trained on. */
+            masters: number;
+            /** @description Those masters' games it trained on. */
+            study_games: number;
+            /** @description The featured master's own games it trained on, counted in the bot's own_games_unit. 0 when the bot has none; the card then leaves the figure out. */
+            own_games: number;
+        };
         GymBot: {
             key: string;
             name: string;
             about: string;
+            /** @description Newest first, as the version menu lists them. */
+            versions?: components["schemas"]["GymBotVersion"][];
+            /** @description The version key a new game plays when it names none. */
+            default_version?: string;
+            /** @description What move_match counts, as the card words it, for example OF MORPHY'S MOVES MATCHED. */
+            match_unit?: string;
+            /** @description What own_games counts, as the card words it, for example MORPHY GAMES. */
+            own_games_unit?: string;
         };
         GymTimeControls: {
             /** @description Preset values for a new game's time field, as minutes+increment, for example 3+0. */
@@ -3951,6 +4975,8 @@ export interface components {
             minutes?: number;
             /** @description Seconds added per move for time=custom. */
             increment?: number;
+            /** @description A version key from the bot's versions, for example v4. Omitted, the game plays the bot's default_version; an unknown key is refused with invalid_version. */
+            version?: string;
         };
         GymClock: {
             initial_ms: number;
@@ -3963,7 +4989,12 @@ export interface components {
         GymGameSummary: {
             id: number;
             bot: string;
+            /** @description The bot alone; bot_version_name adds the version. */
             bot_name: string;
+            /** @description Key of the bot version the game plays, as in the bot's versions. A game of a retired version reports the default it continues with. Absent when the bot is no longer offered. */
+            bot_version?: string;
+            /** @description The bot with the version the game plays, for example Romantic Era Bot v4, as the website's games lists show it on hover. */
+            bot_version_name?: string;
             /** @description Username of the account that played the game. */
             player: string;
             /** @description False when a review account reads another player's game. */
@@ -4003,7 +5034,12 @@ export interface components {
         GymGameState: {
             id: number;
             bot: string;
+            /** @description The bot with the version the game plays, for example Romantic Era Bot v4. */
             bot_name: string;
+            /** @description Key of the bot version the game plays, as in the bot's versions. A game of a retired version reports the default it continues with. Absent when the bot is no longer offered. */
+            bot_version?: string;
+            /** @description The same name as bot_name, under the games lists' field name. */
+            bot_version_name?: string;
             player: string;
             is_player: boolean;
             /** @description UCI moves from the starting position. */
@@ -4035,6 +5071,50 @@ export interface components {
             ok: boolean;
             id: number;
             aborted: boolean;
+        };
+        /**
+         * @description A game as its signed link shows it to anyone who holds the link.
+         *
+         *     The link's page is the analysis board with the game loaded, turned to the
+         *     member's side. The player's own controls (clocks, take-backs, abort) and
+         *     the account's API routes are not part of it.
+         */
+        GymSharedGame: {
+            id: number;
+            bot: string;
+            /** @description Key of the bot version the game plays, as in the bot's versions. */
+            bot_version: string;
+            /** @description The bot with the version the game plays, for example Romantic Era Bot v4. */
+            bot_name: string;
+            /** @description Username of the member who played the bot, as the PGN names them. */
+            player: string;
+            /**
+             * @description The member's side; the board opens from it.
+             * @enum {string}
+             */
+            human_color: "white" | "black";
+            /** @description UCI moves from the starting position. */
+            moves: string[];
+            sans: string[];
+            /** @description The position after the last move. */
+            fen: string;
+            ply: number;
+            /** @description 1-0, 0-1, 1/2-1/2 or * while in play. */
+            result: string;
+            finished: boolean;
+            termination: string;
+            termination_label: string;
+            opening: string;
+            /** @description minutes+increment, or empty for an unlimited game. */
+            time_control: string;
+            /**
+             * Format: date
+             * @description The day the game started, in UTC, as the PGN Date gives it.
+             */
+            date: string;
+            /** @description The game's PGN, as the link's analysis board loads it and urls.pgn downloads it. */
+            pgn: string;
+            urls: components["schemas"]["ResourceLinks"];
         };
         PuzzleSummary: {
             /** @description Stable authenticated account identity for isolating downloaded puzzles. */
@@ -4098,6 +5178,8 @@ export interface components {
                 /** @description A PGN tag name such as Event, Date, White or WhiteElo. */
                 label: string;
                 value: string;
+                /** @description The website page the row's value links to, as the trainer's Game info shows it: a study player's about page on White or Black, or the event's about page on Event. Empty when the row links nowhere. */
+                url?: string;
             }[];
             /** @description The source game, or null when it is not available. */
             game: {
@@ -4183,6 +5265,10 @@ export type MasterGame = components['schemas']['MasterGame'];
 export type MasterGameDetail = components['schemas']['MasterGameDetail'];
 export type MasterGamePage = components['schemas']['MasterGamePage'];
 export type MasterGameExport = components['schemas']['MasterGameExport'];
+export type HeadToHeadRecord = components['schemas']['HeadToHeadRecord'];
+export type MasterSearchInterpretation = components['schemas']['MasterSearchInterpretation'];
+export type MasterGameArchivePlayer = components['schemas']['MasterGameArchivePlayer'];
+export type MasterGameArchivePlayers = components['schemas']['MasterGameArchivePlayers'];
 export type Mainline = components['schemas']['Mainline'];
 export type ApiError = components['schemas']['ApiError'];
 export type PlayerResolutions = components['schemas']['PlayerResolutions'];
@@ -4236,6 +5322,12 @@ export type SearchEvent = components['schemas']['SearchEvent'];
 export type SearchGame = components['schemas']['SearchGame'];
 export type SiteSearchPreview = components['schemas']['SiteSearchPreview'];
 export type SiteSearchPage = components['schemas']['SiteSearchPage'];
+export type SiteSearchHit = components['schemas']['SiteSearchHit'];
+export type SiteContentSearchPage = components['schemas']['SiteContentSearchPage'];
+export type SiteUpdatePhoto = components['schemas']['SiteUpdatePhoto'];
+export type SiteUpdatePost = components['schemas']['SiteUpdatePost'];
+export type SiteUpdatePage = components['schemas']['SiteUpdatePage'];
+export type SiteUpdateDetail = components['schemas']['SiteUpdateDetail'];
 export type TablebaseMove = components['schemas']['TablebaseMove'];
 export type TablebaseProbe = components['schemas']['TablebaseProbe'];
 export type ExplorerError = components['schemas']['ExplorerError'];
@@ -4247,6 +5339,7 @@ export type OpeningExplorerSources = components['schemas']['OpeningExplorerSourc
 export type PlayerOpeningExplorer = components['schemas']['PlayerOpeningExplorer'];
 export type PlayerOpeningExplorerPending = components['schemas']['PlayerOpeningExplorerPending'];
 export type LichessOpeningExplorer = components['schemas']['LichessOpeningExplorer'];
+export type ResolvedGameLink = components['schemas']['ResolvedGameLink'];
 export type AccountGame = components['schemas']['AccountGame'];
 export type AccountCollectionItem = components['schemas']['AccountCollectionItem'];
 export type AccountStarredGame = components['schemas']['AccountStarredGame'];
@@ -4255,6 +5348,11 @@ export type AccountStarredGames = components['schemas']['AccountStarredGames'];
 export type AccountStarredPlayers = components['schemas']['AccountStarredPlayers'];
 export type AccountStarState = components['schemas']['AccountStarState'];
 export type AccountSummary = components['schemas']['AccountSummary'];
+export type AccountProfile = components['schemas']['AccountProfile'];
+export type AccountPreferences = components['schemas']['AccountPreferences'];
+export type ViewerLayoutState = components['schemas']['ViewerLayoutState'];
+export type AccountGameLibraryState = components['schemas']['AccountGameLibraryState'];
+export type AccountCollectionGameRemoved = components['schemas']['AccountCollectionGameRemoved'];
 export type AccountMessage = components['schemas']['AccountMessage'];
 export type AccountCollection = components['schemas']['AccountCollection'];
 export type AccountCollections = components['schemas']['AccountCollections'];
@@ -4282,9 +5380,18 @@ export type AccountNotificationPreferences = components['schemas']['AccountNotif
 export type AccountNotebook = components['schemas']['AccountNotebook'];
 export type AccountNotebooks = components['schemas']['AccountNotebooks'];
 export type AccountNotebookDetail = components['schemas']['AccountNotebookDetail'];
+export type AccountNotebookDetailSectionsItem = components['schemas']['AccountNotebookDetailSectionsItem'];
+export type AccountNotebookDetailChaptersItem = components['schemas']['AccountNotebookDetailChaptersItem'];
+export type AccountNotebookChapterDetail = components['schemas']['AccountNotebookChapterDetail'];
+export type AccountNotebookDeleted = components['schemas']['AccountNotebookDeleted'];
+export type AccountNotebookSectionDeletion = components['schemas']['AccountNotebookSectionDeletion'];
+export type AccountNotebookCollaborator = components['schemas']['AccountNotebookCollaborator'];
+export type AccountNotebookSettings = components['schemas']['AccountNotebookSettings'];
+export type AccountNotebookShare = components['schemas']['AccountNotebookShare'];
 export type NotebookAnnotationSearchLinks = components['schemas']['NotebookAnnotationSearchLinks'];
 export type NotebookAnnotationSearchHit = components['schemas']['NotebookAnnotationSearchHit'];
 export type NotebookAnnotationSearchResult = components['schemas']['NotebookAnnotationSearchResult'];
+export type GymBotVersion = components['schemas']['GymBotVersion'];
 export type GymBot = components['schemas']['GymBot'];
 export type GymTimeControls = components['schemas']['GymTimeControls'];
 export type GymNewGame = components['schemas']['GymNewGame'];
@@ -4295,6 +5402,7 @@ export type GymHome = components['schemas']['GymHome'];
 export type GymGameState = components['schemas']['GymGameState'];
 export type GymDeleted = components['schemas']['GymDeleted'];
 export type GymAborted = components['schemas']['GymAborted'];
+export type GymSharedGame = components['schemas']['GymSharedGame'];
 export type PuzzleSummary = components['schemas']['PuzzleSummary'];
 export type PuzzleMove = components['schemas']['PuzzleMove'];
 export type PuzzleSolution = components['schemas']['PuzzleSolution'];
@@ -4986,7 +6094,8 @@ export interface operations {
             query: {
                 /** @description At most 8 searchable terms. */
                 q: string;
-                kind?: "games" | "events" | "players";
+                /** @description games, events or players return one 50-row page of that curated archive kind. site returns one 20-row page of the site's own pages, player biographies, event histories and What's New posts. */
+                kind?: "games" | "events" | "players" | "site";
                 /** @description Requires kind. Pages past the end return the last page. */
                 page?: number;
             };
@@ -4996,17 +6105,109 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Grouped preview, or one page of a result kind when kind is supplied. */
+            /** @description Grouped archive preview, one page of a curated result kind, or one page of site content when kind is site. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SiteSearchPreview"] | components["schemas"]["SiteSearchPage"];
+                    "application/json": components["schemas"]["SiteSearchPreview"] | components["schemas"]["SiteSearchPage"] | components["schemas"]["SiteContentSearchPage"];
                 };
             };
             /** @description Query exceeds its bounds or requests an unsupported format. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listSiteUpdates: {
+        parameters: {
+            query?: {
+                page?: number;
+                /** @description Values above 100 are clamped to 100. */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of What's New posts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteUpdatePage"];
+                };
+            };
+            /** @description Query exceeds its bounds or requests an unsupported format. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description page is past the last page. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The reviewed catalog is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getSiteUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Post ID as returned in id: its YYYY-MM-DD date and a slug. */
+                update_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One published post. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteUpdateDetail"];
+                };
+            };
+            /** @description No published post with this ID. A post dated after today is not found until that day. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The reviewed catalog is unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5334,6 +6535,15 @@ export interface operations {
                     "text/html": string;
                 };
             };
+            /** @description The reviewed catalog is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
         };
     };
     getPublicGamePgn: {
@@ -5467,6 +6677,15 @@ export interface operations {
                 };
                 content: {
                     "text/html": string;
+                };
+            };
+            /** @description The reviewed catalog is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
         };
@@ -5987,6 +7206,69 @@ export interface operations {
             };
         };
     };
+    resolveGameLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A public Lichess or Chess.com game URL, as pasted on the Analysis Board. */
+                    url: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The game, for one transient analysis session; Cache-Control: no-store. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedGameLink"];
+                };
+            };
+            /** @description The body is not a JSON object, url is missing, not a string or longer than 500 characters, or the link does not name a public game the provider returned as valid PGN. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The request body exceeds 4096 bytes. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The client budget or the shared provider-fetch capacity is exhausted; honor Retry-After when present. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Provider-fetch admission is unavailable; honor Retry-After. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     getPlayerStats: {
         parameters: {
             query?: {
@@ -6050,7 +7332,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Paginated MasterDB game summaries. */
+            /** @description Paginated MasterDB game summaries, with how q was read and, for two players, their record over q's years. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6248,7 +7530,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description One game with PGN. */
+            /** @description One game with PGN, the players' head-to-head record and their archive biography links. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6446,10 +7728,14 @@ export interface operations {
                 ccnb_format?: string;
                 page?: number;
                 page_size?: number;
-                /** @description Search published annotation text; all words must match a note record. Maximum eight terms. */
+                /** @description Search published annotation note text, not game headers (use header_q); all words must match a note record. Maximum eight terms. */
                 q?: string;
+                /** @description Search the game headers as the website's book search box does: one case-insensitive phrase found anywhere in White, Black, Event, Site, Date, opening name or ECO. Combines with q and author. */
+                header_q?: string;
                 /** @description Match author name words in the published source label. Maximum eight terms. */
                 author?: string;
+                /** @description Order by PGN date, undated games last, as the website book list does. */
+                sort?: "asc" | "desc";
             };
             header?: never;
             path: {
@@ -6468,7 +7754,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnnotatedGamePage"];
                 };
             };
-            /** @description Pagination, q or author is invalid; repeated search parameters are rejected. */
+            /** @description Pagination, q, header_q, author or sort is invalid; repeated search parameters are rejected. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6537,6 +7823,58 @@ export interface operations {
             };
         };
     };
+    downloadAnnotatedBook: {
+        parameters: {
+            query?: {
+                /** @description Exact 2 or 3, equivalent to CCNB-Format; absent both defaults to 2. Repeated values or header disagreement are rejected. */
+                ccnb_format?: string;
+            };
+            header?: never;
+            path: {
+                book_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unencrypted Classic Chess Notebook package attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.classicchess.notebook": string;
+                };
+            };
+            /** @description Unsupported or conflicting CCNB-Format or ccnb_format (error code ccnb_format_unsupported). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No downloadable annotated book with this slug. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The reviewed catalog is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     getAnnotatedGame: {
         parameters: {
             query?: never;
@@ -6549,7 +7887,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description One annotated game with PGN and annotation notes. */
+            /** @description One annotated game with PGN, annotation notes and its scanned source pages. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6821,7 +8159,7 @@ export interface operations {
                     "application/json": components["schemas"]["GymGameState"];
                 };
             };
-            /** @description invalid_color, invalid_time_control or invalid_json. */
+            /** @description invalid_color, invalid_time_control, invalid_version or invalid_json. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7395,6 +8733,38 @@ export interface operations {
             };
         };
     };
+    getSharedGymGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The game's signed token: the last path segment of the game's urls.share. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The game as its link shows it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymSharedGame"];
+                };
+            };
+            /** @description not_found: the token is not a valid link, or the game was deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     getPuzzleBatch: {
         parameters: {
             query?: {
@@ -7942,6 +9312,80 @@ export interface operations {
             };
         };
     };
+    createAccountNotebook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    description?: string;
+                    /**
+                     * @description Defaults to private.
+                     * @enum {string}
+                     */
+                    visibility?: "private" | "unlisted" | "public";
+                    /** @description First chapter's title. Defaults to the game's players with game, otherwise Untitled analysis. */
+                    chapter_title?: string;
+                    /** @description A FEN, or one PGN game of at most 1 MB and 10,000 move nodes; empty or omitted starts from the standard position. */
+                    initial_position?: string;
+                    /** @description Slug of a game this account can open (a public archive game, a public import or one of its own imports), such as urls.api_detail's last segment. The chapter starts from the PGN the game page offers. Not with initial_position. */
+                    game?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new Notebook with its folders and first chapter. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDetail"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is not a public account (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No game this account can open has that slug. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     getAccountNotebook: {
         parameters: {
             query?: never;
@@ -7981,6 +9425,1376 @@ export interface operations {
                 };
             };
             /** @description Notebook not found or not visible to this account. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    deleteAccountNotebook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notebook deleted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDeleted"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    renameAccountNotebook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The renamed Notebook with its folders and chapters. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDetail"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getAccountNotebookSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings, collaborators and the accepted choices. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookSettings"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    updateAccountNotebookSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    description?: string;
+                    /** @enum {string} */
+                    visibility?: "private" | "unlisted" | "public";
+                    /** @description Lets accounts that can open the Notebook but are not members export it. */
+                    allow_public_exports?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The settings after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookSettings"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    upsertAccountNotebookCollaborator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description An existing public account, ignoring case. */
+                    username: string;
+                    /**
+                     * @description Only the owner can grant manager or change a manager.
+                     * @enum {string}
+                     */
+                    role: "viewer" | "commenter" | "editor" | "manager";
+                    /**
+                     * @description Kept only for editors and managers.
+                     * @default false
+                     */
+                    can_present_live?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The existing collaborator with its new role. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookCollaborator"];
+                };
+            };
+            /** @description The newly invited collaborator. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookCollaborator"];
+                };
+            };
+            /** @description Unknown or non-public account, the owner, or an invalid body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager, or a manager tried to grant or change manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    removeAccountNotebookCollaborator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                collaborator_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Collaborator removed, or already gone. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDeleted"];
+                };
+            };
+            /** @description The collaborator was removed by another request meanwhile. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager, or a manager tried to remove a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    leaveAccountNotebook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description This account left the Notebook. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDeleted"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account owns the Notebook (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getAccountNotebookShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active Notebook share link, or active false. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookShare"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    createAccountNotebookShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active Notebook share link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookShare"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    revokeAccountNotebookShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Notebook share link is active. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookShare"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    createAccountNotebookSection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    /** @description Folder to add it in; null or omitted adds it at the top level. */
+                    parent_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The new folder. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDetailSectionsItem"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    deleteAccountNotebookSection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                section_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The folders and chapters deleted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookSectionDeletion"];
+                };
+            };
+            /** @description The folder was deleted by another request meanwhile. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such folder in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    renameAccountNotebookSection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                section_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The renamed folder. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDetailSectionsItem"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such folder in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    moveAccountNotebookSection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                section_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description New parent folder; null or omitted moves it to the top level. */
+                    parent_id?: number | null;
+                    /** @description Sibling folder to place it before; null or omitted places it last. */
+                    before_section_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The Notebook after the move. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDetail"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such folder in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    createAccountNotebookChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Defaults to the game's players with game, otherwise Untitled analysis. */
+                    title?: string;
+                    /** @description Folder to add it in; null or omitted adds it at the top level. */
+                    section_id?: number | null;
+                    /** @description A FEN, or one PGN game of at most 1 MB and 10,000 move nodes; empty or omitted starts from the standard position. */
+                    initial_position?: string;
+                    /** @description Slug of a game this account can open (a public archive game, a public import or one of its own imports), such as urls.api_detail's last segment. The chapter starts from the PGN the game page offers. Not with initial_position. */
+                    game?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new chapter with its PGN. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookChapterDetail"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found, or this account neither owns it nor was invited to it. Changes never reveal a Notebook outside the account library. Or no game this account can open has that slug. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getAccountNotebookChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                chapter_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chapter and its PGN. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookChapterDetail"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the notebooks:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook or chapter not found, or not exportable by this account. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    saveAccountNotebookChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                chapter_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The whole chapter as one PGN game, at most 1 MB and 10,000 move nodes. */
+                    pgn: string;
+                    /** @description The content_version of the chapter this edit started from. */
+                    content_version: number;
+                    /** @description Omit to keep the current title. */
+                    title?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The saved chapter with its new content_version. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookChapterDetail"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such chapter in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description chapter_conflict: the chapter changed after content_version was read. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    deleteAccountNotebookChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                chapter_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Chapter deleted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDeleted"];
+                };
+            };
+            /** @description The chapter was deleted by another request meanwhile. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such chapter in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    renameAccountNotebookChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                chapter_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The renamed chapter with its new content_version. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookChapterDetail"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such chapter in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    moveAccountNotebookChapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                chapter_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Folder to move it into; null or omitted moves it to the top level. */
+                    section_id?: number | null;
+                    /** @description Chapter to place it before; null or omitted places it last. */
+                    before_chapter_id?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The Notebook after the move. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookDetail"];
+                };
+            };
+            /** @description The body or a value in it is invalid; error.message names the problem. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:write (missing_scope), or the account is a viewer or commenter (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such chapter in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getAccountNotebookChapterShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                chapter_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active chapter share link, or active false. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookShare"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such chapter in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    createAccountNotebookChapterShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                chapter_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active chapter share link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookShare"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such chapter in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    revokeAccountNotebookChapterShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notebook_uuid: string;
+                chapter_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No share link is active for this chapter. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNotebookShare"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The personal API token lacks notebooks:manage (missing_scope), or the account is not the owner or a manager (permission_denied). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Notebook not found in the account library, or no such chapter in it. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8510,13 +11324,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Current account username, email, and email verification state. */
+            /** @description Current account, its security and linked-account state, and the calling credential. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AccountSummary"];
+                    "application/json": components["schemas"]["AccountProfile"];
                 };
             };
             /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
@@ -8529,6 +11343,133 @@ export interface operations {
                 };
             };
             /** @description Personal API token is missing the account:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current website preferences and their choices. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountPreferences"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the preferences:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    updatePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    disable_animations?: boolean;
+                    /** @description A key from catalogs.reading_fonts. */
+                    reading_font?: string;
+                    /** @description A key from catalogs.board_themes. */
+                    board_theme?: string;
+                    /** @description A key from catalogs.piece_sets. */
+                    piece_set?: string;
+                    /** @description A key from catalogs.board_input_modes. */
+                    board_input_mode?: string;
+                    keyboard_move_entry?: boolean;
+                    /** @description A key from catalogs.move_tree_themes. */
+                    move_tree_theme?: string;
+                    annotation_color_normal?: string;
+                    annotation_color_ctrl?: string;
+                    annotation_color_alt?: string;
+                    annotation_color_ctrl_alt?: string;
+                    autoplay_seconds?: number;
+                    /** @description A value from catalogs.engine_depths. */
+                    engine_depth?: number;
+                    engine_lines?: number;
+                    engine_eval_bar?: boolean;
+                    engine_enabled?: boolean;
+                    /** @description A key from catalogs.sound_sets. Choosing one turns website narration off. */
+                    sound_set?: string;
+                    sound_volume?: number;
+                    /** @description Turning narration on needs speech_available and selects the silent sound set. */
+                    speech_enabled?: boolean;
+                    /** @description Needs speech_available. Rounded to the nearest 0.5. */
+                    speech_level?: number;
+                    /** @description Needs speech_available. */
+                    speech_voice?: string;
+                    /** @description The complete layout state; it replaces the saved one. */
+                    viewer_layouts?: components["schemas"]["ViewerLayoutState"];
+                    /** @description Replaces every override: a command left out returns to its default key. */
+                    viewer_keybindings?: {
+                        [key: string]: string[];
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The updated website preferences. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountPreferences"];
+                };
+            };
+            /** @description invalid_preference: an unknown field, a null, or a value the website would refuse, including narration this account cannot use; invalid_request: the body is not a JSON object. Nothing changed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the preferences:write scope. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8649,6 +11590,8 @@ export interface operations {
                 page_size?: number;
                 /** @description Defaults to the collection's saved preference; an unknown value means added. */
                 sort?: "added" | "date_desc" | "date_asc" | "player" | "manual";
+                /** @description Keep games whose white or black player, event, date, opening name or ECO code contains this text, ignoring case, as the website collection page's filter does. Surrounding spaces are ignored; filtering happens before pagination. */
+                q?: string;
             };
             header?: never;
             path: {
@@ -8667,7 +11610,7 @@ export interface operations {
                     "application/json": components["schemas"]["AccountCollectionPage"];
                 };
             };
-            /** @description Invalid pagination. */
+            /** @description Invalid pagination, or q repeated or longer than 200 characters. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9007,6 +11950,56 @@ export interface operations {
                 };
             };
             /** @description Collection not found for this account. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    removeCollectionGameBySlug: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+                game_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The game is out of the collection; changed is false when it was not in it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountCollectionGameRemoved"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the library:write scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Collection not found for this account, or no game in it or that the caller can open has this slug. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9758,6 +12751,55 @@ export interface operations {
                 };
             };
             /** @description No such game is starred or openable by the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getGameLibraryState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Star state and the collections that hold the game. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountGameLibraryState"];
+                };
+            };
+            /** @description Missing, invalid, expired or revoked bearer token. Browser cookie sessions are not accepted. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Personal API token is missing the library:read scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No game the caller can open has this slug. */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -4,10 +4,156 @@ import type {
   AccountNotificationPage, AccountNotificationPreferences, AccountStarState, AccountStarredGames,
   AccountStarredPlayers, GymAborted, GymDeleted, GymGamePage, GymGameState, GymHome,
   Puzzle, PuzzleBatch, PuzzleHistoryPage, PuzzleReset, PuzzleResultSaved, PuzzleSummary,
-  NotebookAnnotationSearchResult,
+  NotebookAnnotationSearchResult, AccountPreferences, AccountGameLibraryState, AccountCollection, AccountCollectionPage,
+  AccountCollectionGameRemoved, AccountMessage, AccountImportedGames, AccountImportedGame, MobileHome, MobileAndroidRelease,
+  MobileLogin, MobileOk, MobileSessions, MobileSessionRevoked, MobileSessionsRevoked, MobileSettings,
+  AccountNotebookDeleted, AccountNotebookSettings, AccountNotebookCollaborator, AccountNotebookShare,
+  AccountNotebookDetailSectionsItem, AccountNotebookSectionDeletion, AccountNotebookChapterDetail, operations,
 } from './schema.js';
 
 type Json = Record<string, unknown>;
+
+/** A partial website preference change in wire names; fields left out keep their values. */
+export type AccountPreferencesChange = operations['updatePreferences']['requestBody']['content']['application/json'];
+/** A partial device settings change in wire names; fields left out keep their values. */
+export type MobileSettingsChange = operations['updateMobileSettings']['requestBody']['content']['application/json'];
+/** A study plan: the collection, its first 100 entries and progress; created is false for an idempotent repeat. */
+export type AccountPlan = operations['createPlan']['responses'][201]['content']['application/json'];
+export type AccountCollectionOrder = operations['reorderCollection']['responses'][200]['content']['application/json'];
+export type AccountPlanProgress = operations['getPlanProgress']['responses'][200]['content']['application/json'];
+export type AccountPlayerBookmark = operations['togglePlayerBookmark']['responses'][200]['content']['application/json'];
+
+export type CollectionSort = 'added' | 'date_desc' | 'date_asc' | 'player' | 'manual';
+export type ImportedGameSource = 'lichess' | 'chesscom' | 'pgn';
+export type ImportedGameSort = 'imported_desc' | 'imported_asc' | 'date_desc' | 'date_asc' | 'player' | 'visibility';
+export type NotebookVisibility = 'private' | 'unlisted' | 'public';
+export type NotebookRole = 'viewer' | 'commenter' | 'editor' | 'manager';
+
+export interface CollectionGamesOptions extends RequestOptions { page?: number; pageSize?: number; sort?: CollectionSort; query?: string }
+export interface CollectionChange { name?: string; sort?: CollectionSort; description?: string; isPlan?: boolean }
+export interface CollectionItemChange { note?: string; studied?: boolean }
+/** Games in exact playback order. Retry with the same idempotencyKey and input; changed input under it is 409. */
+export interface PlanInput { name: string; description?: string; idempotencyKey: string; items: { game: string; note?: string }[] }
+export interface ImportedGamesOptions extends RequestOptions {
+  query?: string; source?: ImportedGameSource; sort?: ImportedGameSort; page?: number; pageSize?: number;
+}
+/** source defaults to pgn, which needs pgn; lichess and chesscom need remoteUrl. */
+export interface ImportGameInput { source?: ImportedGameSource; pgn?: string; remoteUrl?: string; visibility?: 'private' | 'public' }
+export interface MobileSignInInput { username: string; password: string; twoFactorCode?: string; deviceName?: string }
+/** initialPosition is a FEN or one PGN game; game is a slug the account can open. Use one of them at most. */
+export interface NotebookInput {
+  title: string; description?: string; visibility?: NotebookVisibility; chapterTitle?: string; initialPosition?: string; game?: string;
+}
+export interface NotebookSettingsChange { title?: string; description?: string; visibility?: NotebookVisibility; allowPublicExports?: boolean }
+export interface NotebookCollaboratorInput { username: string; role: NotebookRole; canPresentLive?: boolean }
+export interface NotebookSectionInput { title: string; parentId?: number | null }
+/** null or omitted: the top level, and last among siblings. */
+export interface NotebookSectionPlacement { parentId?: number | null; beforeSectionId?: number | null }
+export interface NotebookChapterInput { title?: string; sectionId?: number | null; initialPosition?: string; game?: string }
+/** null or omitted: the top level, and last among siblings. */
+export interface NotebookChapterPlacement { sectionId?: number | null; beforeChapterId?: number | null }
+/** The whole chapter as one PGN game, and the content_version the edit started from. */
+export interface NotebookChapterEdit { pgn: string; contentVersion: number; title?: string }
+/**
+ * A chapter save. conflict is true for 409 chapter_conflict: the chapter changed after contentVersion
+ * was read (or this save already succeeded) and nothing was saved. The reply does not carry the
+ * current version: reload with accountNotebookChapter, reapply the edit and save again.
+ */
+export interface NotebookChapterSave extends ApplicationResponse<AccountNotebookChapterDetail> { conflict: boolean }
+
+const LOOPBACK = ['localhost', '127.0.0.1', '[::1]'];
+const COLLECTION_SORTS: readonly CollectionSort[] = ['added', 'date_desc', 'date_asc', 'player', 'manual'];
+const IMPORT_SOURCES: readonly ImportedGameSource[] = ['lichess', 'chesscom', 'pgn'];
+const IMPORT_SORTS: readonly ImportedGameSort[] = ['imported_desc', 'imported_asc', 'date_desc', 'date_asc', 'player', 'visibility'];
+const NOTEBOOK_VISIBILITIES: readonly NotebookVisibility[] = ['private', 'unlisted', 'public'];
+const NOTEBOOK_ROLES: readonly NotebookRole[] = ['viewer', 'commenter', 'editor', 'manager'];
+
+function invalid(message: string): never {
+  throw new ApiError(message, { code: 'invalid_request' });
+}
+
+/** A string of min to max code points, as the server counts them. */
+function text(value: unknown, label: string, max: number, min = 1): string {
+  const length = typeof value === 'string' ? [...value].length : -1;
+  if (length < min || length > max) {
+    invalid(min > 0 ? `Use a ${label} of ${min}–${max} characters.` : `Use a ${label} of at most ${max} characters.`);
+  }
+  return value as string;
+}
+
+function nonEmpty(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value) invalid(`Use a non-empty ${label}.`);
+  return value as string;
+}
+
+function choice<T extends string>(value: unknown, allowed: readonly T[], label: string): T {
+  if (!(allowed as readonly unknown[]).includes(value)) invalid(`${label} must be ${allowed.join(', ')}.`);
+  return value as T;
+}
+
+function flag(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') invalid(`${label} must be true or false.`);
+  return value as boolean;
+}
+
+function chapterSource(value: unknown): string {
+  if (typeof value !== 'string') invalid('initialPosition must be a FEN or PGN string.');
+  return value as string;
+}
+
+/** A folder or chapter placement: a positive ID, or null for the top level or the end. */
+function placement(label: string): (value: unknown) => number | null {
+  return value => value === null ? null : positiveId(value as number, label);
+}
+
+type Field = readonly [wire: string, check: (value: unknown) => unknown];
+
+/** Map an input's defined camelCase fields to their wire names, refusing fields the operation lacks. */
+function fields(input: unknown, spec: Record<string, Field>, label: string): Json {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) invalid(`Use a ${label} object.`);
+  const body: Json = {};
+  for (const [key, value] of Object.entries(input as object)) {
+    const field = spec[key];
+    if (field === undefined) invalid(`${label} has no field ${key}.`);
+    if (value !== undefined) body[field[0]] = field[1](value);
+  }
+  return body;
+}
+
+/** A partial change: at least one defined field, and nothing else is sent. */
+function someChange(body: Json, label: string): Json {
+  if (Object.keys(body).length === 0) invalid(`Provide at least one ${label} to change.`);
+  return body;
+}
+
+/** A change in generated wire names, passed through for the server to validate. */
+function wireChange(change: unknown, label: string): Json {
+  if (typeof change !== 'object' || change === null || Array.isArray(change)) invalid(`Use a ${label} object.`);
+  const body = Object.fromEntries(Object.entries(change as object).filter(([, value]) => value !== undefined));
+  return someChange(body, label);
+}
+
+const titleText = (value: unknown) => text(value, 'title', 160);
+const descriptionText = (value: unknown) => text(value, 'description', 2000, 0);
+const gameSlug = (value: unknown) => text(value, 'game slug', 200);
+
+/** A new Notebook or chapter starts from initial_position or game, not both. */
+function startingPoint(body: Json): Json {
+  if (body.initial_position !== undefined && body.game !== undefined) invalid('Use initialPosition or game, not both.');
+  return body;
+}
+
+function notebookPath(notebook: string): string {
+  return `/api/v1/account/notebooks/${notebookUuid(notebook)}/`;
+}
+
+function sectionPath(notebook: string, sectionId: number): string {
+  return `${notebookPath(notebook)}sections/${positiveId(sectionId, 'folder ID')}/`;
+}
+
+function chapterPath(notebook: string, chapterId: number): string {
+  return `${notebookPath(notebook)}chapters/${positiveId(chapterId, 'chapter ID')}/`;
+}
 
 /** Criteria are AND within a group; groups are OR. Catalog slugs match either participant or event membership. */
 export interface CuratedGameFilter {
@@ -108,12 +254,16 @@ function ply(value: number): number {
   return value;
 }
 
-/** A new Gym game. time is 'unlimited', a preset such as '3+0', or 'custom' with minutes and increment. */
+/**
+ * A new Gym game. time is 'unlimited', a preset such as '3+0', or 'custom' with minutes and increment.
+ * version is a key from the bot's versions, such as 'v4'; omitted, the game plays its default_version.
+ */
 export interface GymNewGameOptions {
   color?: 'white' | 'black' | 'random';
   time?: string;
   minutes?: number;
   increment?: number;
+  version?: string;
 }
 
 function gymNewGameBody(game: GymNewGameOptions): Json {
@@ -125,17 +275,18 @@ function gymNewGameBody(game: GymNewGameOptions): Json {
   if (typeof time !== 'string' || !time) {
     throw new ApiError('time must be unlimited, a preset such as 3+0, or custom.', { code: 'invalid_request' });
   }
+  const version = game.version === undefined ? {} : { version: nonEmpty(game.version, 'bot version') };
   if (time !== 'custom') {
     if (game.minutes !== undefined || game.increment !== undefined) {
       throw new ApiError('minutes and increment apply only to time "custom".', { code: 'invalid_request' });
     }
-    return { color, time };
+    return { color, time, ...version };
   }
   const { minutes, increment } = game;
   if (!Number.isSafeInteger(minutes) || minutes! < 1 || !Number.isSafeInteger(increment) || increment! < 0) {
     throw new ApiError('A custom time needs whole minutes from 1 and increment seconds from 0.', { code: 'invalid_request' });
   }
-  return { color, time, minutes, increment };
+  return { color, time, minutes, increment, ...version };
 }
 
 export interface ApplicationRequest extends CcnbRequestOptions {
@@ -268,6 +419,128 @@ export class ApplicationClient {
   accountDeleteImportedGame(gameSlug: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Json>> {
     return this.request({ ...options, path: `/api/v1/account/imported-games/${segment(gameSlug)}/`, method: 'DELETE', token });
   }
+  /** Your imports, newest first unless sort says otherwise; needs library:read. */
+  accountImportedGames(token: string, options: ImportedGamesOptions = {}): Promise<ApplicationResponse<AccountImportedGames>> {
+    const { query, source, sort, page = 1, pageSize = 50, ...request } = options;
+    const params = new URLSearchParams(libraryPage(page, pageSize));
+    if (query !== undefined && text(query, 'search', 120, 0)) params.set('q', query);
+    if (source !== undefined) params.set('source', choice(source, IMPORT_SOURCES, 'source'));
+    if (sort !== undefined) params.set('sort', choice(sort, IMPORT_SORTS, 'sort'));
+    return this.request({ ...request, path: `/api/v1/account/imported-games/?${params}`, token });
+  }
+  /** One owned import with its PGN and board-ready mainline; needs library:read. */
+  accountImportedGame(gameSlug: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountImportedGame>> {
+    return this.request({ ...options, path: `/api/v1/account/imported-games/${segment(gameSlug)}/`, token });
+  }
+  /** Import a pasted PGN or a Lichess or Chess.com game URL (201); needs library:write. 429 and 503 carry retryAfter. */
+  accountImportGame(game: ImportGameInput, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountImportedGame>> {
+    const body = fields(game, {
+      source: ['source', value => choice(value, IMPORT_SOURCES, 'source')],
+      pgn: ['pgn', value => typeof value === 'string' ? value : invalid('pgn must be PGN text.')],
+      remoteUrl: ['remote_url', value => text(value, 'game URL', 500)],
+      visibility: ['visibility', value => choice(value, ['private', 'public'], 'visibility')],
+    }, 'import');
+    if ((body.source ?? 'pgn') === 'pgn' ? !(body.pgn as string | undefined)?.trim() : body.remote_url === undefined) {
+      invalid('A PGN import needs pgn; a Lichess or Chess.com import needs remoteUrl.');
+    }
+    return this.send('POST', '/api/v1/account/imported-games/', token, options, body);
+  }
+
+  /** Website appearance, board, engine, sound and layout settings; needs preferences:read. */
+  accountPreferences(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountPreferences>> {
+    return this.request({ ...options, path: '/api/v1/account/preferences/', token });
+  }
+  /** Change only the given settings (wire names); needs preferences:write. An invalid value is 400 invalid_preference and changes nothing. */
+  accountUpdatePreferences(change: AccountPreferencesChange, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountPreferences>> {
+    return this.send('PATCH', '/api/v1/account/preferences/', token, options, wireChange(change, 'preference'));
+  }
+  /** Whether a game is starred and which of your collections hold it; needs library:read. */
+  accountGameLibrary(gameSlug: string, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountGameLibraryState>> {
+    return this.request({ ...options, path: `/api/v1/account/games/${segment(gameSlug)}/library/`, token });
+  }
+  /** Flip a player's bookmark; needs library:write. Not safe to retry: a repeat flips it back. */
+  accountTogglePlayerBookmark(playerSlug: string, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountPlayerBookmark>> {
+    return this.send('POST', `/api/v1/account/players/${segment(playerSlug)}/bookmark/`, token, options);
+  }
+
+  // Collections and study plans: library:read to read, library:write to change.
+  /** A collection and one page of its games, in its saved sort unless sort is given; query searches them. */
+  accountCollectionGames(collection: number, token: string,
+    options: CollectionGamesOptions = {}): Promise<ApplicationResponse<AccountCollectionPage>> {
+    const { page = 1, pageSize = 50, sort, query, ...request } = options;
+    const params = new URLSearchParams(libraryPage(page, pageSize));
+    if (sort !== undefined) params.set('sort', choice(sort, COLLECTION_SORTS, 'sort'));
+    if (query !== undefined && text(query, 'search', 200, 0)) params.set('q', query);
+    return this.request({ ...request, path: `/api/v1/account/collections/${collectionId(collection)}/?${params}`, token });
+  }
+  /** Rename, describe, re-sort or mark as a plan; isPlan true selects manual order unless sort is given. */
+  accountUpdateCollection(collection: number, change: CollectionChange, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountCollection>> {
+    const body = someChange(fields(change, {
+      name: ['name', value => text(value, 'collection name', 120)],
+      sort: ['sort', value => choice(value, COLLECTION_SORTS, 'sort')],
+      description: ['description', descriptionText],
+      isPlan: ['is_plan', value => flag(value, 'isPlan')],
+    }, 'collection change'), 'collection field');
+    return this.send('PATCH', `/api/v1/account/collections/${collectionId(collection)}/`, token, options, body);
+  }
+  /** Set an entry's note and/or studied state. */
+  accountUpdateCollectionItem(collection: number, itemId: number, change: CollectionItemChange, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountCollectionItem>> {
+    const body = someChange(fields(change, {
+      note: ['note', value => text(value, 'note', 2000, 0)],
+      studied: ['studied', value => flag(value, 'studied')],
+    }, 'item change'), 'item field');
+    return this.send('PATCH', this.collectionItem(collection, itemId), token, options, body);
+  }
+  /** Remove one entry by its collection item ID; the game itself stays. */
+  accountRemoveCollectionItem(collection: number, itemId: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountMessage>> {
+    return this.send('DELETE', this.collectionItem(collection, itemId), token, options);
+  }
+  /** Remove a game by its slug; changed is false when the collection did not hold it. Safe to retry. */
+  accountRemoveCollectionGame(collection: number, gameSlug: string, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountCollectionGameRemoved>> {
+    return this.send('DELETE', `/api/v1/account/collections/${collectionId(collection)}/games/${segment(gameSlug)}/`, token, options);
+  }
+  /** Create a manual-order study plan atomically: 201 when created, 200 for a repeat of the same key and input. */
+  accountCreatePlan(plan: PlanInput, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountPlan>> {
+    const body = fields(plan, {
+      name: ['name', value => text(value, 'plan name', 120)],
+      description: ['description', descriptionText],
+      idempotencyKey: ['idempotency_key', value => text(value, 'idempotency key', 80)],
+      items: ['items', value => {
+        if (!Array.isArray(value) || value.length < 1 || value.length > 100) invalid('A plan needs 1–100 games.');
+        return value.map(item => fields(item, {
+          game: ['game', gameSlug], note: ['note', note => text(note, 'note', 2000, 0)],
+        }, 'plan item'));
+      }],
+    }, 'plan');
+    if (body.name === undefined || body.idempotency_key === undefined || body.items === undefined) {
+      invalid('A plan needs name, idempotencyKey and items.');
+    }
+    if ((body.items as Json[]).some(item => item.game === undefined)) invalid('Each plan item needs a game.');
+    return this.send('POST', '/api/v1/account/plans/', token, options, body);
+  }
+  /** Put every accessible item ID exactly once in the new manual order. */
+  accountReorderCollection(collection: number, itemIds: number[], token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountCollectionOrder>> {
+    if (!Array.isArray(itemIds) || itemIds.length > 10_000) invalid('Use at most 10000 collection item IDs.');
+    const body = { item_ids: itemIds.map(item => positiveId(item, 'collection item ID')) };
+    return this.send('PUT', `/api/v1/account/collections/${collectionId(collection)}/reorder/`, token, options, body);
+  }
+  /** Studied counts and one page of entries in plan order. */
+  accountPlanProgress(collection: number, token: string, page = 1, pageSize = 100,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountPlanProgress>> {
+    return this.request({ ...options, path: `/api/v1/account/collections/${collectionId(collection)}/progress/?${libraryPage(page, pageSize)}`, token });
+  }
+  private collectionItem(collection: number, itemId: number): string {
+    return `/api/v1/account/collections/${collectionId(collection)}/items/${positiveId(itemId, 'collection item ID')}/`;
+  }
+
   // GIF exports need a registered account: any personal token, or a device session.
   masterGameGif(game: string, token: string, orientation: GifOrientation = 'white', options: RequestOptions = {}): Promise<ApplicationDownload> {
     return this.gif(`/api/v1/games/${segment(game)}/gif/`, token, orientation, options);
@@ -357,6 +630,162 @@ export class ApplicationClient {
     if (password === undefined) return this.download({ ...options, path, token, accept });
     if (typeof password !== 'string' || !password) throw new ApiError('Use a non-empty password.', { code: 'invalid_request' });
     return this.download({ ...options, path, token, accept, method: 'POST', body: JSON.stringify({ password }) });
+  }
+
+  // Notebook changes, as the website makes them. Personal tokens need notebooks:write for
+  // Notebooks, folders and chapters, and notebooks:manage for deletion, settings, collaborators
+  // and share links; device sessions pass both. The member's role still applies.
+  /** Create a Notebook with one chapter (201). Each call creates another, so do not retry blindly. */
+  accountCreateNotebook(notebook: NotebookInput, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDetail>> {
+    const body = fields(notebook, {
+      title: ['title', titleText], description: ['description', descriptionText],
+      visibility: ['visibility', value => choice(value, NOTEBOOK_VISIBILITIES, 'visibility')],
+      chapterTitle: ['chapter_title', titleText], initialPosition: ['initial_position', chapterSource], game: ['game', gameSlug],
+    }, 'Notebook');
+    if (body.title === undefined) invalid('A Notebook needs a title.');
+    return this.send('POST', '/api/v1/account/notebooks/', token, options, startingPoint(body));
+  }
+  /** Owner or manager; every other setting keeps its value. */
+  accountRenameNotebook(notebook: string, title: string, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDetail>> {
+    return this.send('PATCH', notebookPath(notebook), token, options, { title: titleText(title) });
+  }
+  /** Owner only: deletes every folder, chapter, collaborator and share link with it. */
+  accountDeleteNotebook(notebook: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDeleted>> {
+    return this.send('DELETE', notebookPath(notebook), token, options);
+  }
+  /** Title, description, visibility, public exports and every collaborator; owner or manager. */
+  accountNotebookSettings(notebook: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookSettings>> {
+    return this.request({ ...options, path: `${notebookPath(notebook)}settings/`, token });
+  }
+  /** Change only the given settings; settings left out keep their current values. */
+  accountUpdateNotebookSettings(notebook: string, change: NotebookSettingsChange, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookSettings>> {
+    const body = someChange(fields(change, {
+      title: ['title', titleText], description: ['description', descriptionText],
+      visibility: ['visibility', value => choice(value, NOTEBOOK_VISIBILITIES, 'visibility')],
+      allowPublicExports: ['allow_public_exports', value => flag(value, 'allowPublicExports')],
+    }, 'settings change'), 'setting');
+    return this.send('PATCH', `${notebookPath(notebook)}settings/`, token, options, body);
+  }
+  /** Invite an account or change its role (201 when added). Only the owner grants or changes manager. */
+  accountSetNotebookCollaborator(notebook: string, collaborator: NotebookCollaboratorInput, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookCollaborator>> {
+    const body = fields(collaborator, {
+      username: ['username', value => text(value, 'username', 150)],
+      role: ['role', value => choice(value, NOTEBOOK_ROLES, 'role')],
+      canPresentLive: ['can_present_live', value => flag(value, 'canPresentLive')],
+    }, 'collaborator');
+    if (body.username === undefined || body.role === undefined) invalid('A collaborator needs username and role.');
+    return this.send('POST', `${notebookPath(notebook)}collaborators/`, token, options, body);
+  }
+  accountRemoveNotebookCollaborator(notebook: string, collaboratorId: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDeleted>> {
+    const path = `${notebookPath(notebook)}collaborators/${positiveId(collaboratorId, 'collaborator ID')}/`;
+    return this.send('DELETE', path, token, options);
+  }
+  /** Leave a Notebook shared with you: removes only your invitation. The owner cannot leave. */
+  accountLeaveNotebook(notebook: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDeleted>> {
+    return this.send('DELETE', `${notebookPath(notebook)}membership/`, token, options);
+  }
+  /** The Notebook's read-only share link, or active false; owner or manager. Keep its url private. */
+  accountNotebookShare(notebook: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookShare>> {
+    return this.request({ ...options, path: `${notebookPath(notebook)}share/`, token });
+  }
+  /** Create the share link, or return the active one unchanged. */
+  accountCreateNotebookShare(notebook: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookShare>> {
+    return this.send('PUT', `${notebookPath(notebook)}share/`, token, options);
+  }
+  accountRevokeNotebookShare(notebook: string, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookShare>> {
+    return this.send('DELETE', `${notebookPath(notebook)}share/`, token, options);
+  }
+
+  /** Add a folder, last among its siblings (201); parentId nests it. */
+  accountCreateNotebookSection(notebook: string, section: NotebookSectionInput, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDetailSectionsItem>> {
+    const body = fields(section, { title: ['title', titleText], parentId: ['parent_id', placement('folder ID')] }, 'folder');
+    if (body.title === undefined) invalid('A folder needs a title.');
+    return this.send('POST', `${notebookPath(notebook)}sections/`, token, options, body);
+  }
+  accountRenameNotebookSection(notebook: string, sectionId: number, title: string, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDetailSectionsItem>> {
+    return this.send('PATCH', sectionPath(notebook, sectionId), token, options, { title: titleText(title) });
+  }
+  /** Delete a folder with every nested folder and chapter; the reply lists their IDs. */
+  accountDeleteNotebookSection(notebook: string, sectionId: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookSectionDeletion>> {
+    return this.send('DELETE', sectionPath(notebook, sectionId), token, options);
+  }
+  /** Move a folder; returns the Notebook after the move. */
+  accountMoveNotebookSection(notebook: string, sectionId: number, to: NotebookSectionPlacement, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDetail>> {
+    const body = fields(to, {
+      parentId: ['parent_id', placement('folder ID')], beforeSectionId: ['before_section_id', placement('folder ID')],
+    }, 'folder placement');
+    return this.send('POST', `${sectionPath(notebook, sectionId)}move/`, token, options, body);
+  }
+
+  /** Add a chapter, last (201), from the standard position, a FEN or PGN, or a game you can open. */
+  accountCreateNotebookChapter(notebook: string, chapter: NotebookChapterInput, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookChapterDetail>> {
+    const body = fields(chapter, {
+      title: ['title', titleText], sectionId: ['section_id', placement('folder ID')],
+      initialPosition: ['initial_position', chapterSource], game: ['game', gameSlug],
+    }, 'chapter');
+    return this.send('POST', `${notebookPath(notebook)}chapters/`, token, options, startingPoint(body));
+  }
+  /** A chapter's PGN and the content_version a save must start from; needs notebooks:read. */
+  accountNotebookChapter(notebook: string, chapterId: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookChapterDetail>> {
+    return this.request({ ...options, path: chapterPath(notebook, chapterId), token });
+  }
+  /**
+   * Replace the chapter's PGN when contentVersion still matches. conflict marks a 409
+   * chapter_conflict, which saved nothing: reload the chapter, reapply the edit and save again.
+   */
+  async accountSaveNotebookChapter(notebook: string, chapterId: number, edit: NotebookChapterEdit, token: string,
+    options: RequestOptions = {}): Promise<NotebookChapterSave> {
+    const body = fields(edit, {
+      pgn: ['pgn', value => typeof value === 'string' ? value : invalid('pgn must be the chapter as PGN text.')],
+      contentVersion: ['content_version', value => positiveId(value as number, 'content version')],
+      title: ['title', titleText],
+    }, 'chapter edit');
+    if (body.pgn === undefined || body.content_version === undefined) invalid('A chapter save needs pgn and contentVersion.');
+    const response = await this.send<AccountNotebookChapterDetail>('PUT', chapterPath(notebook, chapterId), token, options, body);
+    const error = (response.data as { error?: { code?: unknown } } | null)?.error;
+    return { ...response, conflict: response.status === 409 && error?.code === 'chapter_conflict' };
+  }
+  /** A rename raises content_version, so a save begun before it conflicts. */
+  accountRenameNotebookChapter(notebook: string, chapterId: number, title: string, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookChapterDetail>> {
+    return this.send('PATCH', chapterPath(notebook, chapterId), token, options, { title: titleText(title) });
+  }
+  accountDeleteNotebookChapter(notebook: string, chapterId: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDeleted>> {
+    return this.send('DELETE', chapterPath(notebook, chapterId), token, options);
+  }
+  /** Move a chapter; returns the Notebook after the move. */
+  accountMoveNotebookChapter(notebook: string, chapterId: number, to: NotebookChapterPlacement, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookDetail>> {
+    const body = fields(to, {
+      sectionId: ['section_id', placement('folder ID')], beforeChapterId: ['before_chapter_id', placement('chapter ID')],
+    }, 'chapter placement');
+    return this.send('POST', `${chapterPath(notebook, chapterId)}move/`, token, options, body);
+  }
+  /** The chapter's read-only share link, or active false; owner or manager. Keep its url private. */
+  accountNotebookChapterShare(notebook: string, chapterId: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookShare>> {
+    return this.request({ ...options, path: `${chapterPath(notebook, chapterId)}share/`, token });
+  }
+  /** Create the chapter's share link, or return the active one unchanged. */
+  accountCreateNotebookChapterShare(notebook: string, chapterId: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookShare>> {
+    return this.send('PUT', `${chapterPath(notebook, chapterId)}share/`, token, options);
+  }
+  accountRevokeNotebookChapterShare(notebook: string, chapterId: number, token: string,
+    options: RequestOptions = {}): Promise<ApplicationResponse<AccountNotebookShare>> {
+    return this.send('DELETE', `${chapterPath(notebook, chapterId)}share/`, token, options);
   }
 
   // The Gym: play the site's bots. Personal tokens need gym:read to read and
@@ -502,6 +931,63 @@ export class ApplicationClient {
       body: new Uint8Array(await upload.arrayBuffer()), contentType: upload.headers.get('Content-Type')! });
   }
 
+  // Device sessions: what the Android app uses. Sign-in returns a session token, which the
+  // session and settings operations require; a personal API token is not accepted there.
+  /** Front-door counts, Game of the Day and the app's action links; no credentials. */
+  mobileHome(options: RequestOptions = {}): Promise<ApplicationResponse<MobileHome>> {
+    return this.request({ ...options, path: '/api/v1/mobile/home/' });
+  }
+  /** The current Android release: version, APK URL, SHA-256 checksum and size; no credentials. */
+  mobileAndroidRelease(options: RequestOptions = {}): Promise<ApplicationResponse<MobileAndroidRelease>> {
+    return this.request({ ...options, path: '/api/v1/mobile/android/release/' });
+  }
+  /**
+   * Sign in with a username and password (201) and receive a device session token. A 401
+   * two_factor_required asks for twoFactorCode. The password is sent only over HTTPS or loopback.
+   */
+  mobileSignIn(credentials: MobileSignInInput, options: RequestOptions = {}): Promise<ApplicationResponse<MobileLogin>> {
+    const body = fields(credentials, {
+      username: ['username', value => text(value, 'username', 150)],
+      password: ['password', value => nonEmpty(value, 'password')],
+      twoFactorCode: ['two_factor_code', value => nonEmpty(value, 'two-factor code')],
+      deviceName: ['device_name', value => text(value, 'device name', 80)],
+    }, 'sign-in');
+    if (body.username === undefined || body.password === undefined) invalid('Sign-in needs username and password.');
+    const { hostname, protocol } = new URL(this.baseUrl);
+    if (protocol !== 'https:' && !LOOPBACK.includes(hostname)) {
+      throw new ApiError('Passwords require HTTPS or loopback development.', { code: 'unsafe_credentials' });
+    }
+    return this.request({ ...options, path: '/api/v1/account/mobile/login/', method: 'POST', body: JSON.stringify(body) });
+  }
+  /** Revoke this device session. */
+  mobileSignOut(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<MobileOk>> {
+    return this.send('POST', '/api/v1/account/mobile/logout/', token, options);
+  }
+  /** The account's active device sessions; current marks this one. */
+  mobileSessions(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<MobileSessions>> {
+    return this.request({ ...options, path: '/api/v1/account/mobile/sessions/', token });
+  }
+  mobileRevokeSession(sessionId: number, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<MobileSessionRevoked>> {
+    return this.send('POST', `/api/v1/account/mobile/sessions/${positiveId(sessionId, 'session ID')}/revoke/`, token, options);
+  }
+  /** Revoke every device session of the account, this one included. */
+  mobileRevokeAllSessions(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<MobileSessionsRevoked>> {
+    return this.send('POST', '/api/v1/account/mobile/sessions/revoke-all/', token, options);
+  }
+  /** The app's board, engine, sound, speech and cast settings, kept apart from the website's preferences. */
+  mobileSettings(token: string, options: RequestOptions = {}): Promise<ApplicationResponse<MobileSettings>> {
+    return this.request({ ...options, path: '/api/v1/account/mobile/settings/', token });
+  }
+  /** Change only the given settings (wire names). */
+  mobileUpdateSettings(change: MobileSettingsChange, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<MobileSettings>> {
+    return this.send('POST', '/api/v1/account/mobile/settings/', token, options, wireChange(change, 'setting'));
+  }
+
+  private send<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, token: string, options: RequestOptions,
+    body?: Json): Promise<ApplicationResponse<T>> {
+    return this.request({ ...options, path, method, token, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  }
+
   async request<T = Record<string, unknown>>(input: ApplicationRequest): Promise<ApplicationResponse<T>> {
     const response = await this.exchange(input, 'application/json');
     return { ok: response.status >= 200 && response.status < 300, status: response.status,
@@ -533,7 +1019,7 @@ export class ApplicationClient {
       if (!PRIVATE_PATH.test(url.pathname) && !GIF_PATH.test(url.pathname)) {
         throw new ApiError('Bearer credentials are not accepted by this public endpoint.', { code: 'unsafe_credentials' });
       }
-      if (url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
+      if (url.protocol !== 'https:' && !LOOPBACK.includes(url.hostname)) {
         throw new ApiError('Bearer credentials require HTTPS or loopback development.', { code: 'unsafe_credentials' });
       }
     }

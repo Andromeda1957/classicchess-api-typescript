@@ -144,6 +144,7 @@ if (books[0]) {
 | `publicEvents(query?)`, `eventNames(query?)` | Complete event catalog / names |
 | `annotatedBooks({ ccnbFormat })`, `bookTitles({ ccnbFormat })` | Complete annotated book catalog / titles; format is optional |
 | `annotatedNotebookFile(bookSlug, { ccnbFormat })` | Exact downloadable annotated Notebook bytes |
+| `annotatedBookCcnb(bookSlug, { ccnbFormat })` | The same package through the versioned API (`urls.api_ccnb`) |
 | `publicPlayer(slug)` | Full profile in `player` |
 | `publicPlayerBio(slug)` | Approved `bio` or null, plus player identity |
 | `publicNotableGames(slug)` | Ordered `results` with titles, context and games |
@@ -152,19 +153,30 @@ if (books[0]) {
 | `publicImportedGame(username, gameSlug)`, `publicImportedPgn(username, gameSlug)` | A game another account imported and made public, by its page address |
 | `pgnTextForGames(pgnUrls)` | Combine returned `api_pgn` URLs into one PGN string, preserving their order |
 | `exportPublicGames(filters?)`, `exportMasterGames(filters)` | PGN or NDJSON bundle, **at most 300 games**; `format: "ndjson"` selects JSON lines |
+| `exportPublicGamesByToken(tokens, filters?)`, `exportMasterGamesByToken(tokens, { format })` | The same bundle for 1–300 tokens sent in the request body, for lists too long for a URL; public exports take the same filters |
 | `masterGames(filters)`, `iterateMasterGames(filters)` | MasterDB page / async iterator |
 | `masterGame(token)`, `masterPgn(token)` | MasterDB detail / PGN |
 | `players(query, { limit })`, `masterStats({ query })` | Player resolver and full statistics |
-| `explorer({ play, fen, moves, topGames, sourceType, sourceKey })`, `explorerSources()` | Opening statistics and available sources |
-| `lichessExplorer({ fen, player, color, result })` | Lichess opening statistics relayed through Classic Chess, so no Lichess token is needed; no player covers the whole Lichess database, a Lichess username covers that player's games |
-| `annotatedGames(bookSlug, page?)`, `iterateAnnotatedGames(bookSlug, page?, options?)` | One book page / async game iterator |
+| `explorer({ play, fen, moves, topGames, sourceType, sourceKey, since, until })`, `explorerSources()` | Opening statistics and available sources; `since`/`until` are inclusive years |
+| `playerExplorer({ player, fen, color, result, page, since, until })` | One player's games at a position as structured rows; an unresolved name returns candidates, and a `pending` reply carries `retry_after_ms` while the player's index is first built |
+| `lichessExplorer({ fen, player, color, result, since, until })` | Lichess opening statistics relayed through Classic Chess, so no Lichess token is needed; no player covers the whole Lichess database, a Lichess username covers that player's games |
+| `lichessExplorerGame(gameId)` | A public Lichess game's title and PGN by its eight-character ID; nothing is imported |
+| `resolveGameLink(url)` | The PGN of one public Lichess or Chess.com game link, and the side to view it from for a Lichess `/white` or `/black` link; nothing is saved |
+| `annotatedGames(bookSlug, filters?)`, `iterateAnnotatedGames(bookSlug, filters?, options?)` | One book page / async game iterator |
 | `annotatedGame(bookSlug, gameSlug)` | Game detail with annotation notes |
 | `annotatedPgn(bookSlug, gameSlug?)` | One game's PGN, or the complete book when gameSlug is omitted |
 
 Public filters: `query`, `archivePlayer`, `archiveEvent`, `searchMode` (`players`
 searches players, event, site and date; `openings` searches opening name and ECO;
 `all` is the default), `since`, `until`,
-`sort` (`asc`, `desc`, or `event` with `archiveEvent`), `page`, `pageSize` (1–100). Tokens accept canonical
+`sort` (`asc`, `desc`, or `event` with `archiveEvent`), `page`, `pageSize` (1–100),
+`theme` (comma-separated slugs from `studyThemes()`; every one must match), `eco`
+(a code or prefix such as `D` or `D30`), `result` (`1-0`, `0-1`, `1/2-1/2` or `*`),
+and the published-annotation filters `annotationQ` (note text), `annotationAuthor`
+and `annotationBook`. Annotated book games take `query` (annotation notes),
+`headerQuery` (one phrase in the players, event, site, date, opening or ECO),
+`author`, `sort` (`asc` by PGN date, the default, or `desc`), `page` and `pageSize`.
+Tokens accept canonical
 game slugs and legacy `playerSlug/gameSlug` values. Pass tokens, not URLs.
 For a complete PGN archive, iterate games and fetch each PGN, or export their
 tokens in batches of at most 300. Query exports return only the first 300 matches.
@@ -208,8 +220,17 @@ const event = await api.publicEvent('wcc-1972');
 const about = await api.publicEventAbout('wcc-1972'); // biography, vitals and crosstable
 const preview = await api.siteSearch('fischer spassky'); // players, events and games
 const games = await api.siteSearch('tal', 'games', 2); // one kind, paginated
+const pages = await api.siteSearch('najdorf', 'site'); // site pages, biographies, event histories and posts
 const probe = await api.tablebase('8/8/8/8/8/2k5/2P5/2K5 w - - 0 1');
+const anniversaries = await api.chessToday(); // or chessTodayOnDate(month, day)
+const themes = await api.studyThemes(); // slugs for the publicGames theme filter
+const news = await api.siteUpdates({ page: 1 }); // What's New, newest first; has_next for more
+const post = news.results[0] && await api.siteUpdate(news.results[0].id);
 ```
+
+`sharedGymGame(token)` reads a Gym game by the signed token at the end of its
+share link, as anyone who holds the link sees it; ask again to follow a game in
+progress.
 
 `tablebase` uses local Syzygy tables and falls back to the Lichess tablebase for
 positions with more pieces than the local tables cover, as the website does. It
@@ -299,12 +320,20 @@ the endpoint. Keep tokens in the trusted Node.js or Electron main process.
 | Add one game to a collection | `accountAddCollectionGame(collectionId, gameSlug, token)`; adding a game twice returns `changed: false` |
 | Starred players | `accountStarredPlayers(token, page, pageSize)`, `accountStarPlayer(slug, token)`, `accountUnstarPlayer(slug, token)` |
 | Starred games | `accountStarredGames(token, page, pageSize)`, `accountStarGame(slug, token)`, `accountUnstarGame(slug, token)` |
+| Collection contents | `accountCollectionGames(id, token, { sort, query, page, pageSize })`, `accountUpdateCollection(id, { name, sort, description, isPlan }, token)`, `accountUpdateCollectionItem(id, itemId, { note, studied }, token)`, `accountRemoveCollectionItem(id, itemId, token)`, `accountRemoveCollectionGame(id, gameSlug, token)` |
+| Study plans | `accountCreatePlan({ name, description, idempotencyKey, items: [{ game, note }] }, token)`, `accountReorderCollection(id, itemIds, token)`, `accountPlanProgress(id, token, page, pageSize)` |
+| A game's or player's place in your library | `accountGameLibrary(gameSlug, token)`, `accountTogglePlayerBookmark(playerSlug, token)`; a toggle is not safe to retry |
+| Imported games | `accountImportedGames(token, { query, source, sort, page, pageSize })`, `accountImportedGame(slug, token)`, `accountImportGame({ pgn } or { source: 'lichess' \| 'chesscom', remoteUrl }, token)`; add `visibility` to import as public |
 | Change or delete an imported game | `accountSetImportedGameVisibility(slug, 'public' \| 'private', token)`, `accountDeleteImportedGame(slug, token)` |
+| Website preferences | `accountPreferences(token)`, `accountUpdatePreferences({ board_theme, engine_lines, ... }, token)` with the API's field names; only the given fields change |
 | Scan JPEG bytes | `scanPosition(imageBytes, token)`; `imageBytes` is a `Uint8Array` of up to 850,000 bytes |
 | Export GIFs | `masterGameGif(gameToken, token)`, `publicGameGif(slug, token)`, `annotatedGameGif(bookSlug, gameSlug, token)`, `publicImportedGameGif(username, slug, token)`, `accountImportedGameGif(slug, token)`; pass `'black'` after the token to flip the board |
 | Notifications | `accountNotifications(token, page, pageSize)`, `accountMarkNotificationRead(id, token)`, `accountMarkAllNotificationsRead(token)`, `accountDismissNotification(id, token)`, `accountDismissAllNotifications(token)`, `accountNotificationPreferences(token)`, `accountUpdateNotificationPreferences({ topics, soundEnabled }, token)` |
-| Export Notebooks | `accountNotebooks(token)`, `accountNotebook(uuid, token)`, `accountNotebookChapterPgn(uuid, chapterId, token)`, `accountNotebookFile(uuid, token, password?, { ccnbFormat })` |
-| Play the Gym's bots | `accountGym(token)`, `accountGymGames(token, page, pageSize)`, `accountGymNewGame(botKey, token, { color, time, minutes, increment })`, `accountGymGame(id, token)`, `accountGymMove(id, uci, ply, token)`, `accountGymBotMove(id, ply, token)`, `accountGymTakeBack(id, token)`, `accountGymResign(id, token)`, `accountGymClock(id, token)`, `accountGymAbort(id, token)`, `accountGymDeleteGame(id, token)`, `accountGymGamePgn(id, token)` |
+| Export Notebooks | `accountNotebooks(token)`, `accountNotebook(uuid, token)`, `accountNotebookChapter(uuid, chapterId, token)`, `accountNotebookChapterPgn(uuid, chapterId, token)`, `accountNotebookFile(uuid, token, password?, { ccnbFormat })` |
+| Write Notebooks | `accountCreateNotebook({ title, description, visibility, chapterTitle, initialPosition or game }, token)`, `accountRenameNotebook(uuid, title, token)`, `accountCreateNotebookSection(uuid, { title, parentId }, token)`, `accountRenameNotebookSection(uuid, sectionId, title, token)`, `accountDeleteNotebookSection(uuid, sectionId, token)`, `accountMoveNotebookSection(uuid, sectionId, { parentId, beforeSectionId }, token)`, `accountCreateNotebookChapter(uuid, { title, sectionId, initialPosition or game }, token)`, `accountSaveNotebookChapter(uuid, chapterId, { pgn, contentVersion, title }, token)`, `accountRenameNotebookChapter(uuid, chapterId, title, token)`, `accountDeleteNotebookChapter(uuid, chapterId, token)`, `accountMoveNotebookChapter(uuid, chapterId, { sectionId, beforeChapterId }, token)` |
+| Manage Notebooks | `accountDeleteNotebook(uuid, token)`, `accountNotebookSettings(uuid, token)`, `accountUpdateNotebookSettings(uuid, { title, description, visibility, allowPublicExports }, token)`, `accountSetNotebookCollaborator(uuid, { username, role, canPresentLive }, token)`, `accountRemoveNotebookCollaborator(uuid, collaboratorId, token)`, `accountLeaveNotebook(uuid, token)`, `accountNotebookShare` / `accountCreateNotebookShare` / `accountRevokeNotebookShare(uuid, token)`, `accountNotebookChapterShare` / `accountCreateNotebookChapterShare` / `accountRevokeNotebookChapterShare(uuid, chapterId, token)` |
+| Device sessions | `mobileSignIn({ username, password, twoFactorCode, deviceName })`, `mobileSignOut(token)`, `mobileSessions(token)`, `mobileRevokeSession(id, token)`, `mobileRevokeAllSessions(token)`, `mobileSettings(token)`, `mobileUpdateSettings(change, token)`; `mobileHome()` and `mobileAndroidRelease()` need no credential |
+| Play the Gym's bots | `accountGym(token)`, `accountGymGames(token, page, pageSize)`, `accountGymNewGame(botKey, token, { color, time, minutes, increment, version })`, `accountGymGame(id, token)`, `accountGymMove(id, uci, ply, token)`, `accountGymBotMove(id, ply, token)`, `accountGymTakeBack(id, token)`, `accountGymResign(id, token)`, `accountGymClock(id, token)`, `accountGymAbort(id, token)`, `accountGymDeleteGame(id, token)`, `accountGymGamePgn(id, token)` |
 | Puzzles | `accountPuzzles(token)`, `accountPuzzleNext(token, after)`, `accountPuzzle(id, token)`, `accountPuzzleResult(id, 'solved' or 'missed', token)`, `accountPuzzleHistory(token, page, pageSize)`, `accountPuzzleReset(token)` |
 | Call other account, Notebook, Remote or Cast APIs | `request({ path, method, body, contentType, token })`, or `download({ path, token })` for files |
 
@@ -316,6 +345,36 @@ same-origin download path, sends no account credentials, and returns a
 `Uint8Array`. It rejects redirects and unsupported format values. A Notebook
 with capabilities unavailable in legacy exchange requires format 3.
 
+Personal tokens need `notebooks:read` to read Notebooks and chapters,
+`notebooks:write` to create and rename Notebooks and to create, rename, move,
+delete and save folders and chapters, and `notebooks:manage` to delete a
+Notebook or change its settings, collaborators and share links. Website preferences need
+`preferences:read` and `preferences:write`. Device sessions pass these scopes;
+the member's Notebook role still applies. Creating a Notebook, folder or
+chapter is not idempotent: each call adds another.
+
+A chapter save replaces its PGN only while `contentVersion` still matches the
+version the edit started from. Read both with `accountNotebookChapter`
+(`data.pgn` and `data.chapter.content_version`). When
+another edit, or a rename, came first, the reply is 409 with `conflict: true`
+and nothing is saved; it does not carry the newer version, so reload, reapply
+your edit and save again:
+
+```js
+async function saveEdit(uuid, chapterId, edit, token) {
+  for (let attempt = 1; ; attempt++) {
+    const { data } = await api.accountNotebookChapter(uuid, chapterId, token);
+    const saved = await api.accountSaveNotebookChapter(uuid, chapterId,
+      { pgn: edit(data.pgn), contentVersion: data.chapter.content_version }, token);
+    if (!saved.conflict || attempt === 3) return saved; // check saved.ok for other errors
+  }
+}
+```
+
+`mobileSignIn` sends the password only over HTTPS or loopback development and
+returns a device session `token`. The session and settings operations require
+that device session; a personal API token is refused there.
+
 Any account can play the Gym's bots; the moves are computed on the server.
 Personal tokens need `gym:read` to read games and `gym:play` to start and play
 them. Send the `ply` from the latest game state with each move: a stale ply
@@ -324,7 +383,11 @@ plays one move at a time. While it is busy, `accountGymBotMove` returns 429
 with `capacity_exhausted`: wait `retryAfter` seconds and ask again with the
 same ply. Each account may use 30 minutes of engine time in each hour; once it
 is spent the answer is 429 `engine_budget` with `retryAfter` set to the seconds
-until that hour ends. An account starts at most 30 games an hour. This `gym.mjs` plays one move
+until that hour ends. An account starts at most 30 games an hour. A new game's
+`version` picks one of the bot's `versions`, such as `v4`; omitted, the game
+plays the bot's `default_version`. Every Gym game is public to anyone holding
+its share link; `ClassicChessClient.sharedGymGame(token)` reads it by the last
+segment of the game's `urls.share`. This `gym.mjs` plays one move
 against Morphy:
 
 ```js
@@ -410,8 +473,8 @@ automatically. Use `ClassicChessClient` for public archive and statistics reads.
 Portrait URLs already live in `player.portrait.thumbnail` and `.image`. Download
 those files through an image loader with memory/disk caching; empty URLs mean no
 portrait. Use your app's file-download handling for large files instead of the JSON
-application client. The versioned player-opening endpoint
-`/api/v1/opening-explorer/player/` returns rows without website HTML fragments.
+application client. `ClassicChessClient.playerExplorer` reads the versioned
+player-opening endpoint, which returns rows without website HTML fragments.
 `eventSeries()` uses `/api/v1/public/event-series/`; `publicGames` with
 `archiveEvent` and `sort: 'event'` preserves curated round order and `event_round`.
 Cross-origin browser access is not enabled; browser apps should call their backend.
@@ -467,6 +530,24 @@ nothing; restart at 0 for the actual addition. Batch retries preserve existing
 entries, notes and progress. There is no automatic write retry or frozen catalog
 snapshot. Stop on errors and retain the last successful cursor for resuming.
 All helpers accept the usual request options, including `AbortSignal`.
+
+A study plan is a manual-order collection created in one atomic call of up to
+100 games. Repeating `accountCreatePlan` with the same `idempotencyKey` and
+input returns the existing plan with `created: false`, so a timed-out request
+can be retried safely; different input under that key is 409. Mark entries
+studied with `accountUpdateCollectionItem` and read the counts with
+`accountPlanProgress`:
+
+```javascript
+const plan = await api.accountCreatePlan({
+  name: 'Tal attacks', idempotencyKey: 'tal-attacks-1',
+  items: [{ game: 'tal-vs-larsen', note: 'The knight sacrifice on e6' }],
+}, token);
+if (!plan.ok) throw new Error(JSON.stringify(plan.data));
+const first = plan.data.results[0];
+await api.accountUpdateCollectionItem(plan.data.collection.id, first.collection_item_id, { studied: true }, token);
+console.log((await api.accountPlanProgress(plan.data.collection.id, token)).data.studied);
+```
 
 ## Build and test this repository
 
