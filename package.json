@@ -49,7 +49,7 @@
     "generate:types": "npm run codegen:install && node codegen/generate.ts",
     "check:contract": "npm run codegen:install && node codegen/generate.ts --check",
     "prepack": "npm run build",
-    "prepare": "npm run build",
+    "prepare": "node scripts/build.ts",
     "codegen:install": "npm ci --prefix codegen --workspaces=false --no-audit --no-fund --silent"
   },
   "devDependencies": {

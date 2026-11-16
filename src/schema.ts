@@ -1134,7 +1134,7 @@ export interface paths {
         put?: never;
         /**
          * Ask the bot for its move
-         * @description The engine computes one move at a time and serves waiting accounts in turn. While it is busy the answer is 429 capacity_exhausted with Retry-After 1: ask again with the same ply. Each account also has an hourly budget of engine time; once it is spent the answer is 429 engine_budget with Retry-After until the hour ends. Opening-book moves cost nothing.
+         * @description Each engine computes one move at a time and serves waiting accounts in turn. While it is busy the answer is 429 capacity_exhausted with Retry-After 1: ask again with the same ply. Each account also has an hourly budget of engine time; once it is spent the answer is 429 engine_budget with Retry-After until the hour ends. Opening-book moves cost nothing. Strength returns 202 with the complete game and thinking=true while its durable job waits or runs. Repeat requests at the same ply coalesce. Poll getGymGame until thinking=false; thinking_error reports a failed job. Historical bots keep their synchronous 200/429 behavior.
          */
         post: operations["requestGymBotMove"];
         delete?: never;
@@ -4933,18 +4933,31 @@ export interface components {
             /** @description What the version trained on, from the bot's info dialog. */
             summary: string;
             /** @description Share of the master's own moves the bot plays in held-out games, from 0 to 1. The card shows it as a whole percent followed by the bot's match_unit. */
-            move_match: number;
-            /** @description Masters whose games the version trained on. */
-            masters: number;
-            /** @description Those masters' games it trained on. */
-            study_games: number;
+            move_match: number | null;
+            /** @description Masters whose games the version trained on; null for strength. */
+            masters: number | null;
+            /** @description Those masters' games it trained on; null for strength. */
+            study_games: number | null;
             /** @description The featured master's own games it trained on, counted in the bot's own_games_unit. 0 when the bot has none; the card then leaves the figure out. */
-            own_games: number;
+            own_games: number | null;
+        };
+        GymRatingInterval: {
+            low: number;
+            high: number;
         };
         GymBot: {
             key: string;
             name: string;
             about: string;
+            /** @description existing for the historical bots; strength for the strength engine. */
+            engine: string;
+            rating: number | null;
+            rating_interval: components["schemas"]["GymRatingInterval"] | null;
+            rating_conditions: string | null;
+            /** @description Measured Elo difference: this bot minus Stockfish. */
+            stockfish_gap: number | null;
+            /** @description Measured Elo difference: this bot minus Leela. */
+            leela_gap: number | null;
             /** @description Newest first, as the version menu lists them. */
             versions?: components["schemas"]["GymBotVersion"][];
             /** @description The version key a new game plays when it names none. */
@@ -5057,6 +5070,10 @@ export interface components {
             can_abort: boolean;
             clock: components["schemas"]["GymClock"] | null;
             bot_to_move: boolean;
+            /** @description A durable strength move is pending or running. Poll this game with GET. */
+            thinking: boolean;
+            /** @description Terminal move-job error, or null. An explicit bot request retries it. */
+            thinking_error: string | null;
             opening: string;
             time_control: string;
             /** Format: date-time */
@@ -5392,6 +5409,7 @@ export type NotebookAnnotationSearchLinks = components['schemas']['NotebookAnnot
 export type NotebookAnnotationSearchHit = components['schemas']['NotebookAnnotationSearchHit'];
 export type NotebookAnnotationSearchResult = components['schemas']['NotebookAnnotationSearchResult'];
 export type GymBotVersion = components['schemas']['GymBotVersion'];
+export type GymRatingInterval = components['schemas']['GymRatingInterval'];
 export type GymBot = components['schemas']['GymBot'];
 export type GymTimeControls = components['schemas']['GymTimeControls'];
 export type GymNewGame = components['schemas']['GymNewGame'];
@@ -8447,6 +8465,15 @@ export interface operations {
         responses: {
             /** @description The game after the bot's move. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GymGameState"];
+                };
+            };
+            /** @description The complete game while the strength move is pending. */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

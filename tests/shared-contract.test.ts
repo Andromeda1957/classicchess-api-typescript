@@ -2,9 +2,15 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { ApplicationClient, ClassicChessClient } from '../dist/esm/index.js';
+import type { GymGameState, GymHome, GymRatingInterval } from '../dist/esm/index.js';
 
 /** The parts of the shared fixtures, also run by the Python and Kotlin SDKs, used here. */
 interface ClientFixtures {
+  gym: {
+    home: GymHome;
+    game_replies: Array<{ name: string; method: 'GET' | 'POST'; status: number; retry_after: string | null;
+      body: GymGameState | { error: { code: string; message: string } } }>;
+  };
   page_sequences: Array<{ name: string; pages: unknown[]; expected_tokens: string[] }>;
   invalid_pages: Array<{ name: string; body: string; code: string }>;
   http_errors: Array<{ name: string; status: number; body: string; retry_after: string | null; code: string }>;
@@ -30,6 +36,44 @@ function wire(replies: Response[]) {
   } });
   return { api, requests: () => requests };
 }
+
+test('shared Gym states and nullable bot metadata without automatic polling', async () => {
+  const gym = fixtures.gym;
+  const calls: Array<{ path: string; init: RequestInit }> = [];
+  let next = Response.json(gym.home);
+  const client = new ApplicationClient({ fetch: async (url, init) => {
+    calls.push({ path: new URL(url as URL).pathname, init: init! });
+    return next;
+  } });
+  const home = await client.accountGym('fixture');
+  assert.deepEqual(home.data, gym.home);
+  assert.equal(home.data.bots[0]!.versions![0]!.move_match, 0.6);
+  assert.equal(home.data.bots[0]!.rating_interval, null);
+  const strength = home.data.bots[1]!;
+  const interval: GymRatingInterval | null = strength.rating_interval;
+  assert.deepEqual(interval, { low: 1450, high: 1550 });
+  const version = strength.versions![0]!;
+  assert.deepEqual([version.move_match, version.masters, version.study_games, version.own_games], [null, null, null, null]);
+  calls.length = 0;
+  for (const entry of gym.game_replies) {
+    next = Response.json(entry.body, { status: entry.status,
+      headers: entry.retry_after === null ? {} : { 'Retry-After': entry.retry_after } });
+    const reply = entry.method === 'GET' ? await client.accountGymGame(7, 'fixture') :
+      await client.accountGymBotMove(7, 1, 'fixture');
+    assert.equal(reply.status, entry.status, entry.name);
+    assert.equal(reply.ok, entry.status < 300, entry.name);
+    assert.equal(reply.retryAfter, entry.retry_after, entry.name);
+    assert.deepEqual(reply.data, entry.body, entry.name);
+    assert.equal(calls.length, 1, entry.name);
+    const sent = calls[0]!;
+    assert.equal(sent.path, '/api/v1/account/gym/games/7/' + (entry.method === 'GET' ? '' : 'bot-move/'));
+    assert.equal(sent.init.method, entry.method);
+    assert.equal(new Headers(sent.init.headers).get('Authorization'), 'Bearer fixture');
+    assert.deepEqual(sent.init.body == null ? null : JSON.parse(sent.init.body as string),
+      entry.method === 'GET' ? null : { ply: 1 });
+    calls.length = 0;
+  }
+});
 
 test('shared growing pagination sequences reach every page', async () => {
   for (const entry of fixtures.page_sequences) {

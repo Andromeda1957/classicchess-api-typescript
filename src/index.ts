@@ -24,7 +24,7 @@ export type {
   AccountStarredPlayers, AccountStarState, PublicImportedGame, AccountNotification, AccountNotificationPage,
   AccountNotificationChange, AccountNotificationTopic, AccountNotificationPreferences, AccountNotebook,
   AccountNotebooks, AccountNotebookDetail, GymBot, GymTimeControls, GymClock, GymGameSummary, GymGamePage,
-  GymHome, GymGameState, GymDeleted, GymAborted, PuzzleSummary, PuzzleMove, PuzzleSolution, Puzzle,
+  GymHome, GymGameState, GymRatingInterval, GymDeleted, GymAborted, PuzzleSummary, PuzzleMove, PuzzleSolution, Puzzle,
   PuzzleResultSaved, PuzzleHistoryEntry, PuzzleHistoryPage, PuzzleReset, PuzzleBatch,
   NotebookAnnotationSearchLinks, NotebookAnnotationSearchHit, NotebookAnnotationSearchResult,
   ChessTodayDay, ChessTodayEntry, SiteUpdatePhoto, SiteUpdatePost, SiteUpdatePage, SiteUpdateDetail, SiteSearchHit,

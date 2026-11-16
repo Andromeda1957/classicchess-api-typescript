@@ -823,9 +823,13 @@ export class ApplicationClient {
     return this.gymPost(gameId, 'move/', token, options, { move, ply: ply(atPly) });
   }
   /**
-   * Ask for the bot's move. A 429 capacity_exhausted means the engine is busy: wait retryAfter
-   * seconds and ask again with the same ply. A 429 engine_budget means this account has used its
+   * Ask for the bot's move. Historical bots return 429 capacity_exhausted while their engine
+   * is busy: wait retryAfter seconds and ask again with the same ply.
+   * A 429 engine_budget means this account has used its
    * 30 minutes of engine time for the current hour; ask again after retryAfter seconds.
+   * When a Strength bot is offered, 202 carries the complete game with thinking=true.
+   * Read accountGymGame until thinking=false; thinking_error reports a failed job.
+   * Repeated requests at the same ply coalesce. Polling and retries are caller-controlled.
    */
   accountGymBotMove(gameId: number, atPly: number, token: string,
     options: RequestOptions = {}): Promise<ApplicationResponse<GymGameState>> {
@@ -920,14 +924,25 @@ export class ApplicationClient {
     return this.request({ ...options, path: '/api/v1/account/puzzles/reset/', method: 'POST', token });
   }
 
-  async scanPosition(image: Uint8Array, token: string, options: RequestOptions = {}): Promise<ApplicationResponse<Record<string, unknown>>> {
+  /** Upload a resized JPEG; screen corners are flat TL/TR/BR/BL normalized pairs. */
+  async scanPosition(image: Uint8Array, token: string,
+    options: RequestOptions & { mode?: 'diagram' | 'screen'; corners?: readonly number[] | null } = {},
+  ): Promise<ApplicationResponse<Record<string, unknown>>> {
     if (!(image instanceof Uint8Array) || image.byteLength < 1 || image.byteLength > 850_000) {
       throw new ApiError('Use a JPEG of at most 850000 bytes.', { code: 'invalid_upload' });
     }
+    const { mode = 'diagram', corners = null, ...requestOptions } = options;
+    choice(mode, ['diagram', 'screen'], 'mode');
+    if (corners !== null && (mode !== 'screen' || !Array.isArray(corners) || corners.length !== 8
+      || Array.from(corners).some(value => typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1))) {
+      invalid('Use eight normalized corner coordinates in screen mode.');
+    }
     const form = new FormData();
     form.append('image', new Blob([Uint8Array.from(image).buffer], { type: 'image/jpeg' }), 'diagram.jpg');
+    if (mode !== 'diagram') form.append('mode', mode);
+    if (corners !== null) form.append('corners', JSON.stringify(corners));
     const upload = new Request(this.baseUrl, { method: 'POST', body: form });
-    return this.request({ ...options, path: '/api/v1/mobile/position-scan/', method: 'POST', token, timeoutMs: 85_000,
+    return this.request({ ...requestOptions, path: '/api/v1/mobile/position-scan/', method: 'POST', token, timeoutMs: 85_000,
       body: new Uint8Array(await upload.arrayBuffer()), contentType: upload.headers.get('Content-Type')! });
   }
 

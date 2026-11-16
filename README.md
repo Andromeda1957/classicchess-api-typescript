@@ -378,7 +378,7 @@ that device session; a personal API token is refused there.
 Any account can play the Gym's bots; the moves are computed on the server.
 Personal tokens need `gym:read` to read games and `gym:play` to start and play
 them. Send the `ply` from the latest game state with each move: a stale ply
-returns 409 and plays nothing, so a repeated request is safe. The bot engine
+returns 409 and plays nothing, so a repeated request is safe. The historical bot engine
 plays one move at a time. While it is busy, `accountGymBotMove` returns 429
 with `capacity_exhausted`: wait `retryAfter` seconds and ask again with the
 same ply. Each account may use 30 minutes of engine time in each hour; once it
@@ -387,7 +387,18 @@ until that hour ends. An account starts at most 30 games an hour. A new game's
 `version` picks one of the bot's `versions`, such as `v4`; omitted, the game
 plays the bot's `default_version`. Every Gym game is public to anyone holding
 its share link; `ClassicChessClient.sharedGymGame(token)` reads it by the last
-segment of the game's `urls.share`. This `gym.mjs` plays one move
+segment of the game's `urls.share`.
+
+When the server offers an approved Strength bot, its move request can return
+202 with the complete game and `thinking: true`. Read `accountGymGame(id, token)`
+until `thinking` is false. A non-null `thinking_error` reports a failed job;
+another explicit bot-move request retries it. Repeated move requests at the same
+ply coalesce. The SDK preserves the status and does not poll or retry automatically.
+Strength metadata uses `engine: "strength"`, nullable rating fields and null
+move-match/training figures; historical bots use `engine: "existing"` and retain
+their figures. Strength is optional and is not enabled by installing this SDK.
+
+This `gym.mjs` plays one move
 against Morphy:
 
 ```js

@@ -1,5 +1,105 @@
 {
   "version": 1,
+  "gym": {
+    "home": {
+      "bots": [
+        {
+          "key": "morphy", "name": "Romantic Era Bot", "about": "Historical fixture",
+          "engine": "existing", "rating": null, "rating_interval": null,
+          "rating_conditions": null, "stockfish_gap": null, "leela_gap": null,
+          "versions": [{
+            "key": "tested", "label": "v8", "title": "Default test weights",
+            "summary": "Historical test version", "move_match": 0.6,
+            "masters": 52, "study_games": 2807, "own_games": 404
+          }],
+          "default_version": "tested", "match_unit": "OF MORPHY'S MOVES MATCHED",
+          "own_games_unit": "MORPHY GAMES"
+        },
+        {
+          "key": "test-strength", "name": "Test strength fixture", "about": "Synthetic SDK fixture",
+          "engine": "strength", "rating": 1500, "rating_interval": {"low": 1450, "high": 1550},
+          "rating_conditions": "Synthetic fixture, not a measured release",
+          "stockfish_gap": null, "leela_gap": null,
+          "versions": [{
+            "key": "aaaaaaaaaaaaaaaa", "label": "aaaaaaaa", "title": "",
+            "summary": "Synthetic SDK fixture", "move_match": null,
+            "masters": null, "study_games": null, "own_games": null
+          }],
+          "default_version": "aaaaaaaaaaaaaaaa", "match_unit": "", "own_games_unit": ""
+        }
+      ],
+      "time_controls": {"presets": ["1+0", "3+0", "5+0", "10+0"], "max_minutes": 180, "max_increment_seconds": 60},
+      "can_review_all": false,
+      "games": {"count": 0, "page": 1, "page_size": 20, "page_count": 1, "results": []}
+    },
+    "game_replies": [
+      {
+        "name": "strength-pending", "method": "POST", "status": 202, "retry_after": null,
+        "body": {
+          "id": 7, "bot": "test-strength", "bot_name": "Test strength fixture aaaaaaaa",
+          "bot_version": "aaaaaaaaaaaaaaaa", "bot_version_name": "Test strength fixture aaaaaaaa",
+          "player": "strength-player", "is_player": true,
+          "moves": ["e2e4"], "sans": ["e4"],
+          "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1", "ply": 1,
+          "human_color": "white", "result": "*", "finished": false,
+          "termination": "", "termination_label": "", "takebacks": 0, "can_abort": false,
+          "clock": null, "bot_to_move": true, "thinking": true, "thinking_error": null,
+          "opening": "King's Pawn Game", "time_control": "", "created_at": "2026-11-14T12:00:00+00:00",
+          "urls": {"api": "/api/v1/account/gym/games/7/"}
+        }
+      },
+      {
+        "name": "strength-completed", "method": "GET", "status": 200, "retry_after": null,
+        "body": {
+          "id": 7, "bot": "test-strength", "bot_name": "Test strength fixture aaaaaaaa",
+          "bot_version": "aaaaaaaaaaaaaaaa", "bot_version_name": "Test strength fixture aaaaaaaa",
+          "player": "strength-player", "is_player": true,
+          "moves": ["e2e4", "e7e5"], "sans": ["e4", "e5"],
+          "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2", "ply": 2,
+          "human_color": "white", "result": "*", "finished": false,
+          "termination": "", "termination_label": "", "takebacks": 0, "can_abort": false,
+          "clock": null, "bot_to_move": false, "thinking": false, "thinking_error": null,
+          "opening": "King's Pawn Game", "time_control": "", "created_at": "2026-11-14T12:00:00+00:00",
+          "urls": {"api": "/api/v1/account/gym/games/7/"}
+        }
+      },
+      {
+        "name": "strength-failed", "method": "GET", "status": 200, "retry_after": null,
+        "body": {
+          "id": 7, "bot": "test-strength", "bot_name": "Test strength fixture aaaaaaaa",
+          "bot_version": "aaaaaaaaaaaaaaaa", "bot_version_name": "Test strength fixture aaaaaaaa",
+          "player": "strength-player", "is_player": true,
+          "moves": ["e2e4"], "sans": ["e4"],
+          "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1", "ply": 1,
+          "human_color": "white", "result": "*", "finished": false,
+          "termination": "", "termination_label": "", "takebacks": 0, "can_abort": false,
+          "clock": null, "bot_to_move": true, "thinking": false,
+          "thinking_error": "The bot could not finish this move. Try again.",
+          "opening": "King's Pawn Game", "time_control": "", "created_at": "2026-11-14T12:00:00+00:00",
+          "urls": {"api": "/api/v1/account/gym/games/7/"}
+        }
+      },
+      {
+        "name": "historical-completed", "method": "POST", "status": 200, "retry_after": null,
+        "body": {
+          "id": 7, "bot": "morphy", "bot_name": "Romantic Era Bot v8",
+          "bot_version": "tested", "bot_version_name": "Romantic Era Bot v8",
+          "player": "strength-player", "is_player": true,
+          "moves": ["e2e4", "e7e5"], "sans": ["e4", "e5"],
+          "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2", "ply": 2,
+          "human_color": "white", "result": "*", "finished": false,
+          "termination": "", "termination_label": "", "takebacks": 0, "can_abort": false,
+          "clock": null, "bot_to_move": false, "thinking": false, "thinking_error": null,
+          "opening": "King's Pawn Game", "time_control": "", "created_at": "2026-11-14T12:00:00+00:00",
+          "urls": {"api": "/api/v1/account/gym/games/7/"}
+        }
+      },
+      {
+        "name": "historical-busy", "method": "POST", "status": 429, "retry_after": "1",
+        "body": {"error": {"code": "capacity_exhausted", "message": "The bot is finishing a move in another game. Trying again."}}
+      }
+    ]
+  },
   "page_sequences": [
     {
       "name": "growing-3-pages",

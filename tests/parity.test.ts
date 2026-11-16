@@ -60,10 +60,32 @@ test('scanner sends bounded JPEG multipart bytes and does not send invalid image
   assert.equal(file.name, 'diagram.jpg');
   assert.equal(file.type, 'image/jpeg');
   assert.deepEqual(new Uint8Array(await file.arrayBuffer()), jpeg);
+  assert.deepEqual([...form.keys()], ['image']);
+  const controller = new AbortController();
+  controller.abort();
+  const signal = controller.signal;
+  const corners = [0.1, 0.2, 0.9, 0.2, 0.9, 0.8, 0.1, 0.8];
+  for (const points of [null, corners]) {
+    await api.scanPosition(jpeg, 'fixture', { mode: 'screen', corners: points, signal });
+    const call = calls.at(-1)!;
+    const screenHeaders = new Headers(call.input!.headers);
+    assert.equal(screenHeaders.get('Authorization'), 'Bearer fixture');
+    assert.equal(call.input!.signal!.aborted, true);
+    const screen = await new Response(call.input!.body, { headers: screenHeaders }).formData();
+    assert.equal(screen.get('mode'), 'screen');
+    assert.equal(screen.get('corners'), points === null ? null : JSON.stringify(corners));
+    assert.deepEqual(new Uint8Array(await (screen.get('image') as File).arrayBuffer()), jpeg);
+  }
   for (const image of [new Uint8Array(), new Uint8Array(850001)]) {
     await assert.rejects(() => api.scanPosition(image, 'fixture'), { code: 'invalid_upload' });
   }
-  assert.equal(calls.length, 1);
+  await assert.rejects(() => api.scanPosition(jpeg, 'fixture', { mode: 'other' as 'screen' }), { code: 'invalid_request' });
+  await assert.rejects(() => api.scanPosition(jpeg, 'fixture', { corners }), { code: 'invalid_request' });
+  for (const points of [[], corners.slice(1), [...corners, 0.5], Array(8) as number[],
+    [NaN, ...corners.slice(1)], [Infinity, ...corners.slice(1)], [-0.1, ...corners.slice(1)], [1.1, ...corners.slice(1)]]) {
+    await assert.rejects(() => api.scanPosition(jpeg, 'fixture', { mode: 'screen', corners: points }), { code: 'invalid_request' });
+  }
+  assert.equal(calls.length, 3);
 });
 
 test('PGN bundles preserve order and reject links outside the configured public API', async () => {

@@ -3228,7 +3228,7 @@ paths:
   /api/v1/account/gym/games/{game_id}/bot-move/:
     post:
       summary: Ask the bot for its move
-      description: 'The engine computes one move at a time and serves waiting accounts in turn. While it is busy the answer is 429 capacity_exhausted with Retry-After 1: ask again with the same ply. Each account also has an hourly budget of engine time; once it is spent the answer is 429 engine_budget with Retry-After until the hour ends. Opening-book moves cost nothing.'
+      description: 'Each engine computes one move at a time and serves waiting accounts in turn. While it is busy the answer is 429 capacity_exhausted with Retry-After 1: ask again with the same ply. Each account also has an hourly budget of engine time; once it is spent the answer is 429 engine_budget with Retry-After until the hour ends. Opening-book moves cost nothing. Strength returns 202 with the complete game and thinking=true while its durable job waits or runs. Repeat requests at the same ply coalesce. Poll getGymGame until thinking=false; thinking_error reports a failed job. Historical bots keep their synchronous 200/429 behavior.'
       operationId: requestGymBotMove
       security:
       - AccountApiToken: *id001
@@ -3254,6 +3254,12 @@ paths:
       responses:
         '200':
           description: The game after the bot's move.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GymGameState'
+        '202':
+          description: The complete game while the strength move is pending.
           content:
             application/json:
               schema:
@@ -14908,22 +14914,30 @@ components:
           description: What the version trained on, from the bot's info dialog.
           type: string
         move_match:
-          description: Share of the master's own moves the bot plays in held-out games, from 0 to 1. The card shows it as a whole percent followed by the bot's match_unit.
+          type:
+          - number
+          - 'null'
           maximum: 1
           minimum: 0
-          type: number
+          description: Share of the master's own moves the bot plays in held-out games, from 0 to 1. The card shows it as a whole percent followed by the bot's match_unit.
         masters:
-          description: Masters whose games the version trained on.
+          type:
+          - integer
+          - 'null'
           minimum: 0
-          type: integer
+          description: Masters whose games the version trained on; null for strength.
         study_games:
-          description: Those masters' games it trained on.
+          type:
+          - integer
+          - 'null'
           minimum: 0
-          type: integer
+          description: Those masters' games it trained on; null for strength.
         own_games:
-          description: The featured master's own games it trained on, counted in the bot's own_games_unit. 0 when the bot has none; the card then leaves the figure out.
+          type:
+          - integer
+          - 'null'
           minimum: 0
-          type: integer
+          description: The featured master's own games it trained on, counted in the bot's own_games_unit. 0 when the bot has none; the card then leaves the figure out.
       required:
       - key
       - label
@@ -14934,6 +14948,16 @@ components:
       - study_games
       - own_games
       type: object
+    GymRatingInterval:
+      properties:
+        low:
+          type: number
+        high:
+          type: number
+      required:
+      - low
+      - high
+      type: object
     GymBot:
       properties:
         key:
@@ -14942,6 +14966,31 @@ components:
           type: string
         about:
           type: string
+        engine:
+          description: existing for the historical bots; strength for the strength engine.
+          type: string
+        rating:
+          type:
+          - number
+          - 'null'
+        rating_interval:
+          anyOf:
+          - $ref: '#/components/schemas/GymRatingInterval'
+          - type: 'null'
+        rating_conditions:
+          type:
+          - string
+          - 'null'
+        stockfish_gap:
+          type:
+          - number
+          - 'null'
+          description: 'Measured Elo difference: this bot minus Stockfish.'
+        leela_gap:
+          type:
+          - number
+          - 'null'
+          description: 'Measured Elo difference: this bot minus Leela.'
         versions:
           description: Newest first, as the version menu lists them.
           items:
@@ -14960,6 +15009,12 @@ components:
       - key
       - name
       - about
+      - engine
+      - rating
+      - rating_interval
+      - rating_conditions
+      - stockfish_gap
+      - leela_gap
       type: object
     GymTimeControls:
       properties:
@@ -15190,6 +15245,14 @@ components:
           - type: 'null'
         bot_to_move:
           type: boolean
+        thinking:
+          description: A durable strength move is pending or running. Poll this game with GET.
+          type: boolean
+        thinking_error:
+          type:
+          - string
+          - 'null'
+          description: Terminal move-job error, or null. An explicit bot request retries it.
         opening:
           type: string
         time_control:
@@ -15218,6 +15281,8 @@ components:
       - can_abort
       - clock
       - bot_to_move
+      - thinking
+      - thinking_error
       - opening
       - time_control
       - created_at
